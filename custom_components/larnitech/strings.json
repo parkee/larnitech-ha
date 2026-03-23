@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Larnitech controller",
+        "description": "Enter the IP address and API key for your Larnitech controller. The API key can be found in LT Setup → Plugins → API → Configure.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]",
+          "api_key": "API key",
+          "ws_port": "WebSocket port",
+          "http_port": "HTTP API port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  }
+}

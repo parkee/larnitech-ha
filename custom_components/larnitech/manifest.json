@@ -1,0 +1,22 @@
+{
+  "domain": "larnitech",
+  "name": "Larnitech",
+  "codeowners": [
+    "@parkee"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/parkee/larnitech-ha",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "loggers": ["pylarnitech"],
+  "requirements": [
+    "pylarnitech==0.1.0"
+  ],
+  "ssdp": [
+    {
+      "manufacturer": "Larnitech"
+    }
+  ],
+  "version": "0.1.0"
+}
