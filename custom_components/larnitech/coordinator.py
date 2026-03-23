@@ -67,22 +67,25 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
     async def _async_update_data(
         self,
     ) -> dict[str, LarnitechDeviceStatus]:
-        """Fetch latest statuses via HTTP API.
-
-        Called on first refresh and when manually requested.
-        When WebSocket is pushing updates, this is called less frequently.
-        """
+        """Fetch latest statuses via HTTP API."""
         try:
             statuses = await self.client.get_all_statuses()
         except Exception as err:
-            raise UpdateFailed(f"Error fetching device statuses: {err}") from err
+            raise UpdateFailed(
+                f"Error fetching device statuses: {err}"
+            ) from err
+        if not statuses:
+            # Return previous data if available, empty dict otherwise
+            return self.data or {}
         return {s.addr: s for s in statuses}
 
     @callback
     def _handle_ws_update(self, data: dict[str, Any]) -> None:
         """Handle a status push from WebSocket."""
+        if not isinstance(data, dict):
+            return
         status = data.get("status")
-        if not status:
+        if not isinstance(status, dict):
             return
         addr = status.get("addr")
         if not addr:
@@ -90,9 +93,9 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
 
         # Update our data with the new status
         device_status = LarnitechDeviceStatus.from_dict(status)
-        if self.data is not None:
-            self.data[addr] = device_status
-            self.async_set_updated_data(self.data)
+        current = self.data if self.data is not None else {}
+        current[addr] = device_status
+        self.async_set_updated_data(current)
 
     @callback
     def _handle_ws_disconnect(self) -> None:

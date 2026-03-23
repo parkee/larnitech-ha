@@ -100,9 +100,8 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         t_delta = int(device.extra.get("t-delta", 16))
         self._attr_min_temp = t_min
         self._attr_max_temp = t_min + t_delta
-        step = device.extra.get("t-step")
-        if step:
-            self._attr_target_temperature_step = float(step)
+        # AC temperature is stored as integer byte — force 1°C steps
+        self._attr_target_temperature_step = 1.0
 
     def _decode_state(self) -> ACState:
         """Decode the hex state to an ACState object."""
