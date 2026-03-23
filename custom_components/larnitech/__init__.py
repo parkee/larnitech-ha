@@ -8,7 +8,6 @@ from homeassistant.const import CONF_HOST, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, device_registry as dr
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -36,12 +35,15 @@ async def async_setup_entry(
     entry: LarnitechConfigEntry,
 ) -> bool:
     """Set up Larnitech from a config entry."""
+    # Note: we do NOT pass HA's shared session because the Larnitech
+    # controller sends non-standard 'Connection: Closed' (capital C)
+    # which breaks aiohttp keep-alive. pylarnitech creates its own
+    # session with force_close=True.
     client = LarnitechClient(
         host=entry.data[CONF_HOST],
         api_key=entry.data[CONF_API_KEY],
         ws_port=entry.data.get(CONF_WS_PORT, DEFAULT_WS_PORT),
         http_port=entry.data.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT),
-        session=async_get_clientsession(hass),
     )
 
     # Validate connection

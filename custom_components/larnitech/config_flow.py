@@ -8,7 +8,6 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from pylarnitech import (
     LarnitechAuthError,
@@ -62,7 +61,6 @@ class LarnitechConfigFlow(ConfigFlow, domain=DOMAIN):
                 api_key=api_key,
                 ws_port=ws_port,
                 http_port=http_port,
-                session=async_get_clientsession(self.hass),
             )
 
             try:
@@ -99,10 +97,7 @@ class LarnitechConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def _get_serial(self, host: str) -> str | None:
         """Try to get the controller serial from the admin panel."""
-        admin = LarnitechAdminClient(
-            host=host,
-            session=async_get_clientsession(self.hass),
-        )
+        admin = LarnitechAdminClient(host=host)
         try:
             await admin.login()
             info = await admin.get_controller_info()
