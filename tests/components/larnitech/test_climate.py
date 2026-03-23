@@ -34,18 +34,20 @@ class TestLarnitechAC:
         entity = LarnitechAC(coordinator, device)
         assert entity.hvac_mode == HVACMode.OFF
 
-    def test_hvac_mode_fan_only(self) -> None:
-        """Test AC reports FAN_ONLY when mode=3 and power on."""
+    def test_hvac_mode_heat(self) -> None:
+        """Test AC reports HEAT when mode=3 and power on."""
+        # Verified: 0=Fan, 1=Cool, 2=Dry, 3=Heat, 4=Auto
         status = LarnitechDeviceStatus(addr="407:1", type="AC", state="39001C620431100000")
         device = LarnitechDevice(addr="407:1", type="AC", name="AC",
                                   extra={"t-min": "16", "t-delta": "16"})
         coordinator = _make_coordinator("407:1", status)
         entity = LarnitechAC(coordinator, device)
-        assert entity.hvac_mode == HVACMode.FAN_ONLY
+        assert entity.hvac_mode == HVACMode.HEAT
 
     def test_hvac_mode_cool(self) -> None:
-        """Test AC reports COOL when mode=2."""
-        status = LarnitechDeviceStatus(addr="407:1", type="AC", state="21001C620031")
+        """Test AC reports COOL when mode=1."""
+        # byte0=0x19: power=1, mode=1=Cool
+        status = LarnitechDeviceStatus(addr="407:1", type="AC", state="19001C620031")
         device = LarnitechDevice(addr="407:1", type="AC", name="AC",
                                   extra={"t-min": "16", "t-delta": "16"})
         coordinator = _make_coordinator("407:1", status)
