@@ -66,10 +66,12 @@ _LARNITECH_TO_FAN_MODE = {
 
 _FAN_TO_LARNITECH = {v: k for k, v in _LARNITECH_TO_FAN_MODE.items()}
 
-# Swing/vane positions: 0=Auto, 1-8=fixed positions
-# Verified: horizontal swing has 0-8 (9 total positions)
+# Vertical swing: Auto (0) + positions 1-8
 SWING_AUTO = "Auto"
-_SWING_MODES = [SWING_AUTO] + [str(i) for i in range(1, 9)]
+_VERT_SWING_MODES = [SWING_AUTO] + [str(i) for i in range(1, 9)]
+
+# Horizontal swing: positions 0-8 (no Auto — just numbered positions)
+_HORIZ_SWING_MODES = [str(i) for i in range(9)]
 
 
 
@@ -123,8 +125,8 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         # All ACs get swing controls — the byte is always present in the
         # state. If the physical AC doesn't support vanes, it simply
         # ignores the values. 0 = Auto is always valid.
-        self._attr_swing_modes = _SWING_MODES
-        self._attr_swing_horizontal_modes = _SWING_MODES
+        self._attr_swing_modes = _VERT_SWING_MODES
+        self._attr_swing_horizontal_modes = _HORIZ_SWING_MODES
         self._attr_supported_features = (
             ClimateEntityFeature.TARGET_TEMPERATURE
             | ClimateEntityFeature.FAN_MODE
@@ -180,10 +182,8 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
 
     @property
     def swing_horizontal_mode(self) -> str | None:
-        """Return the horizontal vane position."""
+        """Return the horizontal vane position (0-8, no Auto)."""
         ac = self._get_ac_state()
-        if ac.vane_horizontal == 0:
-            return SWING_AUTO
         return str(ac.vane_horizontal)
 
     async def _async_send_ac_state(self, ac: ACState) -> None:
@@ -228,9 +228,9 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     async def async_set_swing_horizontal_mode(
         self, swing_mode: str
     ) -> None:
-        """Set the horizontal vane position."""
+        """Set the horizontal vane position (0-8)."""
         ac = self._get_ac_state()
-        ac.vane_horizontal = 0 if swing_mode == SWING_AUTO else int(swing_mode)
+        ac.vane_horizontal = int(swing_mode)
         await self._async_send_ac_state(ac)
 
     async def async_turn_on(self) -> None:
