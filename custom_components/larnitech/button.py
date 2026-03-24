@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from pylarnitech.admin import LarnitechAdminClient
-from pylarnitech.const import DEVICE_TYPE_SCRIPT
+from pylarnitech.const import DEVICE_TYPE_REMOTE_CONTROL, DEVICE_TYPE_SCRIPT
+from pylarnitech.models import LarnitechIRSignal
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.const import CONF_HOST, EntityCategory
@@ -12,7 +13,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, LOGGER
-from .coordinator import LarnitechConfigEntry
+from .coordinator import LarnitechConfigEntry, LarnitechCoordinator
 from .entity import LarnitechEntity
 
 
@@ -28,6 +29,18 @@ async def async_setup_entry(
     for device in coordinator.devices.values():
         if device.type == DEVICE_TYPE_SCRIPT:
             entities.append(LarnitechScriptButton(coordinator, device))
+        elif device.type == DEVICE_TYPE_REMOTE_CONTROL:
+            # Create a button per learned IR signal
+            signals = [
+                LarnitechIRSignal.from_dict(s)
+                for s in device.extra.get("sygnals", [])
+            ]
+            for i, sig in enumerate(signals):
+                entities.append(
+                    LarnitechIRSignalButton(
+                        coordinator, device, sig, i
+                    )
+                )
 
     # Add reboot buttons for each module that has serial info
     entry_id = entry.entry_id
@@ -57,6 +70,48 @@ class LarnitechScriptButton(LarnitechEntity, ButtonEntity):
         )
 
 
+class LarnitechIRSignalButton(ButtonEntity):
+    """Button to send a learned IR signal.
+
+    Each learned signal on a remote-control device becomes a button.
+    Users can rename "Signal 0", "Signal 1" etc. to meaningful names
+    like "Power", "Volume Up" in the HA UI.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: LarnitechCoordinator,
+        device,
+        signal: LarnitechIRSignal,
+        index: int,
+    ) -> None:
+        """Initialize the IR signal button."""
+        self._coordinator = coordinator
+        self._signal = signal
+        entry_id = coordinator.config_entry.entry_id
+
+        self._attr_name = (
+            f"{signal.name or f'Signal {index}'} ({device.addr})"
+        )
+        self._attr_unique_id = (
+            f"{entry_id}_{device.addr}_signal_{index}"
+        )
+
+        module_id = device.module_id
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
+        )
+
+    async def async_press(self) -> None:
+        """Send the IR signal."""
+        await self._coordinator.client.send_ir_signal(
+            self._signal.transmitter_addr,
+            self._signal.value,
+        )
+
+
 class LarnitechModuleRebootButton(ButtonEntity):
     """Button to reboot a Larnitech CAN bus module."""
 
@@ -77,12 +132,6 @@ class LarnitechModuleRebootButton(ButtonEntity):
         self._module_id = module_id
         self._serial_dec = module_info.get("serial_dec", "")
         self._attr_unique_id = f"{entry_id}_{module_id}_reboot"
-
-        model_name = module_info.get("model", "")
-        if model_name:
-            device_name = f"{model_name} ({module_id})"
-        else:
-            device_name = f"Module {module_id}"
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
