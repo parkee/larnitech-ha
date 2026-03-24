@@ -57,6 +57,8 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             device_name = f"{model_name} ({module_id})"
         else:
             device_name = f"Module {module_id}"
+        # Use admin API's primary area for the module, default to System
+        module_area = info.get("primary_area") or "System"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
             name=device_name,
@@ -64,7 +66,7 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             model=model_name or f"Module {module_id}",
             serial_number=info.get("serial"),
             sw_version=info.get("firmware"),
-            suggested_area="System",
+            suggested_area=module_area,
             via_device=(DOMAIN, entry_id),
         )
 

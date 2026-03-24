@@ -78,6 +78,19 @@ async def async_setup_entry(
         admin = LarnitechAdminClient(host=entry.data[CONF_HOST])
         await admin.login()
         module_info = await admin.get_modules()
+        # Get primary area for each module
+        try:
+            extra = await admin.get_modules_extra_data()
+            locations = extra.get("locations", {}) if isinstance(extra, dict) else {}
+            for mid, loc in locations.items():
+                if str(mid) in module_info and isinstance(loc, dict):
+                    primary = loc.get("name", "")
+                    # Clean hierarchical paths: "/Bedroom/Bedroom" → "Bedroom"
+                    if primary.startswith("/"):
+                        primary = primary.rsplit("/", 1)[-1]
+                    module_info[str(mid)]["primary_area"] = primary
+        except Exception:
+            LOGGER.debug("Could not load module extra data")
         await admin.close()
         LOGGER.debug("Loaded %d module info from admin panel", len(module_info))
     except Exception:
