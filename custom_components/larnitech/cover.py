@@ -108,7 +108,7 @@ class LarnitechCover(LarnitechEntity, CoverEntity):
         await self.coordinator.client.set_device_status_raw(
             self._addr, state.to_hex()
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
@@ -116,7 +116,7 @@ class LarnitechCover(LarnitechEntity, CoverEntity):
         await self.coordinator.client.set_device_status_raw(
             self._addr, state.to_hex()
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover movement."""
@@ -125,7 +125,7 @@ class LarnitechCover(LarnitechEntity, CoverEntity):
         await self.coordinator.client.set_device_status_raw(
             self._addr, current.to_hex()
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
@@ -140,7 +140,7 @@ class LarnitechCover(LarnitechEntity, CoverEntity):
         await self.coordinator.client.set_device_status_raw(
             self._addr, state.to_hex()
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Set the cover tilt position."""
@@ -155,4 +155,4 @@ class LarnitechCover(LarnitechEntity, CoverEntity):
         await self.coordinator.client.set_device_status_raw(
             self._addr, state.to_hex()
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()

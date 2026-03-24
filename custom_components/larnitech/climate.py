@@ -100,7 +100,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         t_delta = int(device.extra.get("t-delta", 16))
         self._attr_min_temp = t_min
         self._attr_max_temp = t_min + t_delta
-        # AC temperature uses statusFloat2 (bytes 1-2), supports 0.5°C
+        # AC supports 0.5°C via statusFloat2 encoding
         step = device.extra.get("t-step")
         self._attr_target_temperature_step = float(step) if step else 0.5
 
@@ -133,6 +133,15 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         ac = self._decode_state()
         return _LARNITECH_TO_FAN_MODE.get(ac.fan, "auto")
 
+    async def _async_send_ac_state(self, ac: ACState) -> None:
+        """Send AC state and update HA optimistically."""
+        await self.coordinator.client.set_device_status_raw(
+            self._addr, ac.to_hex()
+        )
+        # Optimistic update: write state immediately without polling
+        # The next WS push or scheduled poll will reconcile
+        self.async_write_ha_state()
+
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set the HVAC mode."""
         ac = self._decode_state()
@@ -141,10 +150,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         else:
             ac.power = True
             ac.mode = _HVAC_TO_LARNITECH_MODE.get(hvac_mode, AC_MODE_AUTO)
-        await self.coordinator.client.set_device_status_raw(
-            self._addr, ac.to_hex()
-        )
-        await self.coordinator.async_request_refresh()
+        await self._async_send_ac_state(ac)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set the target temperature."""
@@ -153,37 +159,25 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
             return
         ac = self._decode_state()
         ac.temperature = float(temperature)
-        await self.coordinator.client.set_device_status_raw(
-            self._addr, ac.to_hex()
-        )
-        await self.coordinator.async_request_refresh()
+        await self._async_send_ac_state(ac)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode."""
         ac = self._decode_state()
         ac.fan = _FAN_TO_LARNITECH.get(fan_mode, AC_FAN_AUTO)
-        await self.coordinator.client.set_device_status_raw(
-            self._addr, ac.to_hex()
-        )
-        await self.coordinator.async_request_refresh()
+        await self._async_send_ac_state(ac)
 
     async def async_turn_on(self) -> None:
         """Turn the AC on."""
         ac = self._decode_state()
         ac.power = True
-        await self.coordinator.client.set_device_status_raw(
-            self._addr, ac.to_hex()
-        )
-        await self.coordinator.async_request_refresh()
+        await self._async_send_ac_state(ac)
 
     async def async_turn_off(self) -> None:
         """Turn the AC off."""
         ac = self._decode_state()
         ac.power = False
-        await self.coordinator.client.set_device_status_raw(
-            self._addr, ac.to_hex()
-        )
-        await self.coordinator.async_request_refresh()
+        await self._async_send_ac_state(ac)
 
 
 class LarnitechValveHeating(LarnitechEntity, ClimateEntity):
@@ -247,7 +241,7 @@ class LarnitechValveHeating(LarnitechEntity, ClimateEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": state}
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_turn_on(self) -> None:
         """Turn the heating on."""

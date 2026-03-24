@@ -56,14 +56,14 @@ class LarnitechLight(LarnitechEntity, LightEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "on"}
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "off"}
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
 
 class LarnitechDimmerLight(LarnitechEntity, LightEntity):
@@ -100,11 +100,11 @@ class LarnitechDimmerLight(LarnitechEntity, LightEntity):
             # HA: 0-255, Larnitech: 0-100
             cmd["brightness"] = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
         await self.coordinator.client.set_device_status(self._addr, cmd)
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "off"}
         )
-        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
