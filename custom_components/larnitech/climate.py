@@ -51,6 +51,7 @@ _LARNITECH_TO_HVAC_MODE = {
 _HVAC_TO_LARNITECH_MODE = {v: k for k, v in _LARNITECH_TO_HVAC_MODE.items()}
 
 FAN_TURBO = "turbo"
+FAN_NIGHT = "night"
 
 _LARNITECH_TO_FAN_MODE = {
     AC_FAN_AUTO: FAN_AUTO,
@@ -58,9 +59,14 @@ _LARNITECH_TO_FAN_MODE = {
     AC_FAN_MEDIUM: FAN_MEDIUM,
     AC_FAN_HIGH: FAN_HIGH,
     AC_FAN_TURBO: FAN_TURBO,
+    5: FAN_NIGHT,
 }
 
 _FAN_TO_LARNITECH = {v: k for k, v in _LARNITECH_TO_FAN_MODE.items()}
+
+# Swing/vane positions: "off"=auto(0), "1"-"6"=fixed positions
+# Position 7 is invalid on tested hardware (shows empty icon)
+_SWING_MODES = [SWING_OFF] + [str(i) for i in range(1, 7)]
 
 
 
@@ -96,7 +102,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         HVACMode.FAN_ONLY,
         HVACMode.DRY,
     ]
-    _attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_TURBO]
+    _attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_TURBO, FAN_NIGHT]
 
     def __init__(self, coordinator, device):
         """Initialize the AC entity."""
@@ -111,46 +117,19 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         # Pending state shadow for optimistic updates
         self._pending_state: ACState | None = None
 
-        # Determine swing support from initial device state
-        features = (
+        # All ACs get swing controls — the byte is always present in the
+        # state. If the physical AC doesn't support vanes, it simply
+        # ignores the values. 0 = Auto is always valid.
+        self._attr_swing_modes = _SWING_MODES
+        self._attr_swing_horizontal_modes = _SWING_MODES
+        self._attr_supported_features = (
             ClimateEntityFeature.TARGET_TEMPERATURE
             | ClimateEntityFeature.FAN_MODE
+            | ClimateEntityFeature.SWING_MODE
+            | ClimateEntityFeature.SWING_HORIZONTAL_MODE
             | ClimateEntityFeature.TURN_ON
             | ClimateEntityFeature.TURN_OFF
         )
-
-        # Check vane-hor/vane-ver attributes if available
-        vane_hor_mask = int(device.extra.get("vane-hor", "0"), 0) if device.extra.get("vane-hor") else None
-        vane_ver_mask = int(device.extra.get("vane-ver", "0"), 0) if device.extra.get("vane-ver") else None
-
-        # If attributes not in API, probe initial state for vane support
-        status = coordinator.get_status(device.addr)
-        if status and status.state and len(status.state) >= 8:
-            ac = ACState.from_hex(status.state)
-            # If vane values are non-zero in initial state, the AC supports them
-            if vane_ver_mask is None and ac.vane_vertical > 0:
-                vane_ver_mask = 0x7F  # Assume full range
-            if vane_hor_mask is None and ac.vane_horizontal > 0:
-                vane_hor_mask = 0x7F
-
-        if vane_ver_mask:
-            features |= ClimateEntityFeature.SWING_MODE
-            # Build swing modes from bitmask
-            modes = [SWING_OFF]
-            for i in range(1, 8):
-                if vane_ver_mask & (1 << (i - 1)):
-                    modes.append(str(i))
-            self._attr_swing_modes = modes
-
-        if vane_hor_mask:
-            features |= ClimateEntityFeature.SWING_HORIZONTAL_MODE
-            modes = [SWING_OFF]
-            for i in range(1, 8):
-                if vane_hor_mask & (1 << (i - 1)):
-                    modes.append(str(i))
-            self._attr_swing_horizontal_modes = modes
-
-        self._attr_supported_features = features
 
     def _get_ac_state(self) -> ACState:
         """Get AC state, preferring pending local state over coordinator."""
