@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pylarnitech.const import DEVICE_TYPE_DIMMER_LAMP, DEVICE_TYPE_LAMP
+from pylarnitech.const import (
+    DEVICE_TYPE_DIMMER_LAMP,
+    DEVICE_TYPE_LAMP,
+    DEVICE_TYPE_LIGHT_SCHEME,
+)
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -33,6 +37,10 @@ async def async_setup_entry(
             entities.append(LarnitechLight(coordinator, device))
         elif device.type == DEVICE_TYPE_DIMMER_LAMP:
             entities.append(LarnitechDimmerLight(coordinator, device))
+        elif device.type == DEVICE_TYPE_LIGHT_SCHEME:
+            # Light schemes are groups of lights — behave like a
+            # dimmable light with on/off and brightness control.
+            entities.append(LarnitechLightScheme(coordinator, device))
 
     async_add_entities(entities)
 
@@ -103,6 +111,54 @@ class LarnitechDimmerLight(LarnitechEntity, LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
+        await self.coordinator.client.set_device_status(
+            self._addr, {"state": "off"}
+        )
+        self.async_write_ha_state()
+
+
+class LarnitechLightScheme(LarnitechEntity, LightEntity):
+    """Representation of a Larnitech light scheme (light group).
+
+    Light schemes group multiple lights together. They support:
+    - On/off: turns all grouped lights on or off
+    - Brightness: dims all grouped lights together
+    The API only reports on/off state (no brightness readback).
+    """
+
+    _attr_color_mode = ColorMode.BRIGHTNESS
+    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if the light group is on."""
+        status = self.device_status
+        if status is None:
+            return None
+        return status.state == "on"
+
+    @property
+    def brightness(self) -> int | None:
+        """Return brightness (not available from API readback)."""
+        status = self.device_status
+        if status is None:
+            return None
+        # API only reports on/off, not brightness level.
+        # Return max when on, None when off.
+        if status.state == "on":
+            return 255
+        return 0
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on the light group."""
+        cmd: dict[str, Any] = {"state": "on"}
+        if ATTR_BRIGHTNESS in kwargs:
+            cmd["brightness"] = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+        await self.coordinator.client.set_device_status(self._addr, cmd)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off the light group."""
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "off"}
         )

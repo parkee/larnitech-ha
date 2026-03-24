@@ -24,7 +24,6 @@ PLATFORMS: Final[list[Platform]] = [
     Platform.COVER,
     Platform.LIGHT,
     Platform.REMOTE,
-    Platform.SCENE,
     Platform.SENSOR,
     Platform.VALVE,
 ]
