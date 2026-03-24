@@ -69,21 +69,45 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
         coordinator: LarnitechCoordinator,
         module_id: int,
     ) -> str | None:
-        """Extract the module model name from system sensor names.
+        """Extract the module model name from system/diagnostic sensor names.
 
-        System sensors at address XX:98 or XX:97 have names like
-        "DW-010 Temperature" or "BW-AC CPU". The model is the prefix
-        before "Temperature", "Temp", "CPU", "Voltage", or "Current".
+        Sensors at address XX:98, XX:97, or XX:95 often have names like
+        "DW-010 Temperature", "BW-AC CPU", or "DW-BC03 Current".
+        The model is the prefix before the sensor type suffix.
+
+        Some modules have their :98 sensor in the room area (not "System")
+        with a generic name like "Temperature" — these are skipped.
         """
         suffixes = (
             " Temperature", " Temp", " CPU", " Voltage", " Current",
         )
         for dev in coordinator.devices.values():
-            if dev.module_id != module_id or dev.area != "System":
+            if dev.module_id != module_id:
+                continue
+            # Only look at diagnostic channels (98, 97, 95, 90-92)
+            if dev.channel_id not in (98, 97, 95, 90, 91, 92):
                 continue
             for suffix in suffixes:
                 if suffix in dev.name:
-                    return dev.name.split(suffix)[0].strip()
+                    model = dev.name.split(suffix)[0].strip()
+                    # Skip generic names like "" or single words without a dash
+                    if model and "-" in model:
+                        return model
+
+        # Fallback: infer model from device types on this module
+        types = {
+            d.type
+            for d in coordinator.devices.values()
+            if d.module_id == module_id
+        }
+        if {"motion-sensor", "ir-transmitter"} <= types:
+            return "BW-MS"
+        if "switch" in types and len(types) <= 2:
+            return "BW-SW"
+        if "com-port" in types:
+            return "DW-DALI"
+        if "remote-control" in types:
+            return "Virtual"
         return None
 
     async def async_added_to_hass(self) -> None:
