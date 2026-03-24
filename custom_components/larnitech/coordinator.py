@@ -85,6 +85,13 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
         try:
             statuses = await self.client.get_all_statuses()
         except Exception as err:
+            # If we have previous data, log the error but don't crash.
+            # The controller sometimes returns bad responses when busy.
+            if self.data:
+                LOGGER.debug(
+                    "Poll failed, keeping previous data: %s", err
+                )
+                return self.data
             raise UpdateFailed(
                 f"Error fetching device statuses: {err}"
             ) from err
