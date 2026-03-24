@@ -77,16 +77,16 @@ async def async_setup_entry(
     try:
         admin = LarnitechAdminClient(host=entry.data[CONF_HOST])
         await admin.login()
-        module_models = await admin.get_modules()
+        module_info = await admin.get_modules()
         await admin.close()
-        LOGGER.debug("Loaded %d module models from admin panel", len(module_models))
+        LOGGER.debug("Loaded %d module info from admin panel", len(module_info))
     except Exception:
-        module_models = {}
-        LOGGER.debug("Could not load module models from admin panel")
+        module_info = {}
+        LOGGER.debug("Could not load module info from admin panel")
 
     # Create coordinator
     coordinator = LarnitechCoordinator(hass, entry, client)
-    coordinator.module_models = module_models
+    coordinator.module_info = module_info
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator

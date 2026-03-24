@@ -51,8 +51,8 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
 
         # Group entities by CAN module into HA devices.
         module_id = device.module_id
-        # Use real model name from admin API if available
-        model_name = coordinator.module_models.get(str(module_id))
+        info = coordinator.module_info.get(str(module_id), {})
+        model_name = info.get("model")
         if model_name:
             device_name = f"{model_name} ({module_id})"
         else:
@@ -62,6 +62,8 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             name=device_name,
             manufacturer="Larnitech",
             model=model_name or f"Module {module_id}",
+            serial_number=info.get("serial"),
+            sw_version=info.get("firmware"),
             suggested_area="System",
             via_device=(DOMAIN, entry_id),
         )

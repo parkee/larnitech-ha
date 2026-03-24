@@ -50,7 +50,7 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
         )
         self.client = client
         self.devices: dict[str, LarnitechDevice] = {}
-        self.module_models: dict[str, str] = {}
+        self.module_info: dict[str, dict[str, str]] = {}
         self._unsub_ws: list[Any] = []
 
     async def _async_setup(self) -> None:
