@@ -67,6 +67,8 @@ async def async_setup_entry(
                 param_min = param_def.get("min", 0)
                 param_max = param_def.get("max", 100)
                 label = param_def.get("label", param_name)
+                if not isinstance(label, str):
+                    label = param_name
                 # Clean up TXT_ prefix from labels
                 if label.startswith("TXT_"):
                     label = (
