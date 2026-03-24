@@ -32,21 +32,51 @@ async def async_setup_entry(
     entry_id = entry.entry_id
     entities: list[SelectEntity] = []
 
-    # For each configurable module, fetch HW config and create selects
+    # Fetch all HW configs in a single admin session
+    from pylarnitech.admin import LarnitechAdminClient
+
+    host = entry.data.get("host", "")
+    hw_configs: dict[str, dict] = {}
+    try:
+        admin = LarnitechAdminClient(host=host)
+        await admin.login()
+        for module_id in coordinator.module_info:
+            try:
+                hw_configs[module_id] = await admin.get_module_hw_config(
+                    module_id
+                )
+            except Exception:
+                LOGGER.debug("HW config failed for module %s", module_id)
+        await admin.close()
+        LOGGER.debug("Fetched HW config for %d modules", len(hw_configs))
+    except Exception:
+        LOGGER.warning("Could not connect to admin panel for pin config")
+        return
+
     for module_id, info in coordinator.module_info.items():
         model = info.get("model", "")
-        try:
-            hw_config = await admin_coord.fetch_hw_config(module_id)
-        except Exception:
-            LOGGER.debug("Could not fetch HW config for module %s", module_id)
+        hw_config = hw_configs.get(module_id)
+        if not hw_config:
             continue
 
         if not isinstance(hw_config, dict):
+            LOGGER.debug("Module %s: HW config is not a dict", module_id)
             continue
 
         data = hw_config.get("data", {})
         types = hw_config.get("types", {})
         hw_types = hw_config.get("hwTypes", {})
+
+        if not data or not types:
+            LOGGER.debug(
+                "Module %s: no data/types (keys=%s)", module_id, list(hw_config.keys())
+            )
+            continue
+
+        LOGGER.debug(
+            "Module %s (%s): %d connectors, %d types",
+            module_id, model, len(data), len(types),
+        )
 
         if not data or not types:
             continue

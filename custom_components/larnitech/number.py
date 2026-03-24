@@ -32,16 +32,28 @@ async def async_setup_entry(
     entry_id = entry.entry_id
     entities: list[NumberEntity] = []
 
-    for module_id, info in coordinator.module_info.items():
-        model = info.get("model", "")
-        try:
-            hw_config = await admin_coord.fetch_hw_config(module_id)
-        except Exception:
-            LOGGER.debug(
-                "Could not fetch HW config for module %s", module_id
-            )
-            continue
+    # Fetch all HW configs in a single admin session
+    from pylarnitech.admin import LarnitechAdminClient
 
+    host = entry.data.get("host", "")
+    hw_configs: dict[str, dict] = {}
+    try:
+        admin = LarnitechAdminClient(host=host)
+        await admin.login()
+        for module_id in coordinator.module_info:
+            try:
+                hw_configs[module_id] = await admin.get_module_hw_config(
+                    module_id
+                )
+            except Exception:
+                pass
+        await admin.close()
+    except Exception:
+        LOGGER.warning("Could not connect to admin panel for pin params")
+        return
+
+    for module_id, info in coordinator.module_info.items():
+        hw_config = hw_configs.get(module_id)
         if not isinstance(hw_config, dict):
             continue
 
