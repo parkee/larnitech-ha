@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pylarnitech import LarnitechDevice, LarnitechDeviceStatus
 
+from homeassistant.helpers import area_registry as ar, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -15,7 +16,8 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
     """Base entity for Larnitech devices.
 
     Entities are grouped by CAN module ID into HA devices.
-    Each entity uses the API-provided name for its own display name.
+    Each entity uses the API-provided name and is assigned to the
+    correct HA area based on the Larnitech area field.
 
     Supports optimistic state updates via _pending_status: after sending
     a command, the pending status is used for property reads until the
@@ -34,6 +36,7 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
         super().__init__(coordinator)
         self._device = device
         self._addr = device.addr
+        self._larnitech_area = device.area or None
         self._pending_status: LarnitechDeviceStatus | None = None
 
         # Unique ID: {entry_id}_{device_addr}[_{suffix}]
@@ -53,9 +56,29 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             name=f"Module {module_id}",
             manufacturer="Larnitech",
             model=f"Module {module_id}",
-            suggested_area=device.area or None,
             via_device=(DOMAIN, entry_id),
         )
+
+    async def async_added_to_hass(self) -> None:
+        """Assign entity to the correct HA area after registration."""
+        await super().async_added_to_hass()
+        if not self._larnitech_area:
+            return
+
+        # Look up or create the HA area matching the Larnitech area name
+        area_reg = ar.async_get(self.hass)
+        area = area_reg.async_get_area_by_name(self._larnitech_area)
+        if area is None:
+            area = area_reg.async_create(self._larnitech_area)
+
+        # Assign this entity to that area (overrides device area)
+        ent_reg = er.async_get(self.hass)
+        if self.entity_id and area:
+            entry = ent_reg.async_get(self.entity_id)
+            if entry and entry.area_id != area.id:
+                ent_reg.async_update_entity(
+                    self.entity_id, area_id=area.id
+                )
 
     def _handle_coordinator_update(self) -> None:
         """Handle coordinator data update — clear pending status."""
