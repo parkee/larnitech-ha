@@ -51,13 +51,36 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
 
         # Group entities by CAN module into HA devices.
         module_id = device.module_id
+        model_name = self._get_module_model(coordinator, module_id)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
-            name=f"Module {module_id}",
+            name=model_name or f"Module {module_id}",
             manufacturer="Larnitech",
-            model=f"Module {module_id}",
+            model=model_name or f"Module {module_id}",
             via_device=(DOMAIN, entry_id),
         )
+
+    @staticmethod
+    def _get_module_model(
+        coordinator: LarnitechCoordinator,
+        module_id: int,
+    ) -> str | None:
+        """Extract the module model name from system sensor names.
+
+        System sensors at address XX:98 or XX:97 have names like
+        "DW-010 Temperature" or "BW-AC CPU". The model is the prefix
+        before "Temperature", "Temp", "CPU", "Voltage", or "Current".
+        """
+        suffixes = (
+            " Temperature", " Temp", " CPU", " Voltage", " Current",
+        )
+        for dev in coordinator.devices.values():
+            if dev.module_id != module_id or dev.area != "System":
+                continue
+            for suffix in suffixes:
+                if suffix in dev.name:
+                    return dev.name.split(suffix)[0].strip()
+        return None
 
     async def async_added_to_hass(self) -> None:
         """Assign entity to the correct HA area after registration."""
