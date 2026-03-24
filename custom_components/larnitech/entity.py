@@ -42,6 +42,7 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             name=device.name or f"Device {device.addr}",
             manufacturer="Larnitech",
             model=device.type,
+            suggested_area=device.area or None,
             via_device=(DOMAIN, entry_id),
         )
 
