@@ -46,8 +46,9 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             uid = f"{uid}_{unique_id_suffix}"
         self._attr_unique_id = uid
 
-        # Entity name: use the API name (e.g., "Office BW-AC Temp")
-        self._attr_name = device.name or device.addr
+        # Entity name: API name + address (e.g., "Office BW-AC Temp (407:30)")
+        name = device.name or device.addr
+        self._attr_name = f"{name} ({device.addr})"
 
         # Group entities by CAN module into HA devices.
         module_id = device.module_id
