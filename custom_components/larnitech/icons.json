@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "climate": {
+      "larnitech_ac": {
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "turbo": "mdi:fan-plus"
+            }
+          }
+        }
+      }
+    }
+  }
+}

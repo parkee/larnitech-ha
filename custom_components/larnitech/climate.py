@@ -27,8 +27,11 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.components.climate.const import (
+    FAN_AUTO,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MEDIUM,
     SWING_OFF,
-    SWING_ON,
 )
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
@@ -47,19 +50,20 @@ _LARNITECH_TO_HVAC_MODE = {
 
 _HVAC_TO_LARNITECH_MODE = {v: k for k, v in _LARNITECH_TO_HVAC_MODE.items()}
 
+FAN_TURBO = "turbo"
+
 _LARNITECH_TO_FAN_MODE = {
-    AC_FAN_AUTO: "Auto",
-    AC_FAN_LOW: "Low",
-    AC_FAN_MEDIUM: "Medium",
-    AC_FAN_HIGH: "High",
-    AC_FAN_TURBO: "Turbo",
+    AC_FAN_AUTO: FAN_AUTO,
+    AC_FAN_LOW: FAN_LOW,
+    AC_FAN_MEDIUM: FAN_MEDIUM,
+    AC_FAN_HIGH: FAN_HIGH,
+    AC_FAN_TURBO: FAN_TURBO,
 }
 
 _FAN_TO_LARNITECH = {v: k for k, v in _LARNITECH_TO_FAN_MODE.items()}
 
 # Swing/vane positions: 0=auto, 1-7=fixed positions
 _SWING_MODES = [SWING_OFF] + [str(i) for i in range(1, 8)]
-# SWING_OFF maps to vane=0 (auto)
 
 
 async def async_setup_entry(
@@ -93,7 +97,8 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         HVACMode.FAN_ONLY,
         HVACMode.DRY,
     ]
-    _attr_fan_modes = ["Auto", "Low", "Medium", "High", "Turbo"]
+    _attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_TURBO]
+    _attr_translation_key = "larnitech_ac"
     _attr_swing_modes = _SWING_MODES
     _attr_swing_horizontal_modes = _SWING_MODES
     _attr_supported_features = (
@@ -159,7 +164,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     def fan_mode(self) -> str | None:
         """Return the current fan mode."""
         ac = self._get_ac_state()
-        return _LARNITECH_TO_FAN_MODE.get(ac.fan, "Auto")
+        return _LARNITECH_TO_FAN_MODE.get(ac.fan, FAN_AUTO)
 
     @property
     def swing_mode(self) -> str | None:

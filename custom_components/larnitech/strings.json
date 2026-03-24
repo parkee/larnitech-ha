@@ -20,5 +20,42 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
+  },
+  "entity": {
+    "climate": {
+      "larnitech_ac": {
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "turbo": "Turbo"
+            }
+          },
+          "swing_mode": {
+            "state": {
+              "off": "Auto",
+              "1": "Position 1",
+              "2": "Position 2",
+              "3": "Position 3",
+              "4": "Position 4",
+              "5": "Position 5",
+              "6": "Position 6",
+              "7": "Position 7"
+            }
+          },
+          "swing_horizontal_mode": {
+            "state": {
+              "off": "Auto",
+              "1": "Position 1",
+              "2": "Position 2",
+              "3": "Position 3",
+              "4": "Position 4",
+              "5": "Position 5",
+              "6": "Position 6",
+              "7": "Position 7"
+            }
+          }
+        }
+      }
+    }
   }
 }
