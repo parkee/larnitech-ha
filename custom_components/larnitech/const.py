@@ -23,8 +23,11 @@ PLATFORMS: Final[list[Platform]] = [
     Platform.CLIMATE,
     Platform.COVER,
     Platform.LIGHT,
+    Platform.NUMBER,
     Platform.REMOTE,
+    Platform.SELECT,
     Platform.SENSOR,
+    Platform.UPDATE,
     Platform.VALVE,
 ]
 

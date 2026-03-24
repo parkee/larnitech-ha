@@ -10,6 +10,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
+from .admin_coordinator import LarnitechAdminCoordinator
 from .const import (
     CONF_API_KEY,
     CONF_HTTP_PORT,
@@ -36,11 +37,10 @@ async def async_setup_entry(
     entry: LarnitechConfigEntry,
 ) -> bool:
     """Set up Larnitech from a config entry."""
-    # Do NOT pass HA's shared session — the Larnitech controller sends
-    # non-standard 'Connection: Closed' (capital C) which breaks aiohttp
-    # keep-alive. pylarnitech creates its own session with force_close=True.
+    host = entry.data[CONF_HOST]
+
     client = LarnitechClient(
-        host=entry.data[CONF_HOST],
+        host=host,
         api_key=entry.data[CONF_API_KEY],
         http_port=entry.data.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT),
     )
@@ -52,16 +52,15 @@ async def async_setup_entry(
         err_str = str(err).lower()
         if "auth" in err_str or "key" in err_str:
             raise ConfigEntryAuthFailed(
-                f"Invalid API key for {entry.data[CONF_HOST]}"
+                f"Invalid API key for {host}"
             ) from err
         raise ConfigEntryNotReady(
-            f"Cannot connect to {entry.data[CONF_HOST]}: {err}"
+            f"Cannot connect to {host}: {err}"
         ) from err
 
     if device_count == 0:
         LOGGER.warning(
-            "No devices found on %s; API key may be incorrect",
-            entry.data[CONF_HOST],
+            "No devices found on %s; API key may be incorrect", host
         )
 
     # Register the controller as a device (hub)
@@ -69,26 +68,29 @@ async def async_setup_entry(
     device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.entry_id)},
-        name=f"Larnitech ({entry.data[CONF_HOST]})",
+        name=f"Larnitech ({host})",
         manufacturer="Larnitech",
         model="DE-MG",
     )
 
-    # Fetch real module model names from admin panel
+    # Fetch module info from admin panel
     from pylarnitech.admin import LarnitechAdminClient
 
+    module_info: dict = {}
     try:
-        admin = LarnitechAdminClient(host=entry.data[CONF_HOST])
+        admin = LarnitechAdminClient(host=host)
         await admin.login()
         module_info = await admin.get_modules()
-        # Get primary area for each module
         try:
             extra = await admin.get_modules_extra_data()
-            locations = extra.get("locations", {}) if isinstance(extra, dict) else {}
+            locations = (
+                extra.get("locations", {})
+                if isinstance(extra, dict)
+                else {}
+            )
             for mid, loc in locations.items():
                 if str(mid) in module_info and isinstance(loc, dict):
                     primary = loc.get("name", "")
-                    # Clean hierarchical paths: "/Bedroom/Bedroom" → "Bedroom"
                     if primary.startswith("/"):
                         primary = primary.rsplit("/", 1)[-1]
                     module_info[str(mid)]["primary_area"] = primary
@@ -100,17 +102,27 @@ async def async_setup_entry(
         module_info = {}
         LOGGER.debug("Could not load module info from admin panel")
 
-    # Create coordinator
+    # Create device status coordinator (HTTP + WebSocket push)
     coordinator = LarnitechCoordinator(hass, entry, client)
     coordinator.module_info = module_info
     await coordinator.async_config_entry_first_refresh()
 
+    # Create admin coordinator for module health (polls every 5 min)
+    admin_coordinator = LarnitechAdminCoordinator(hass, host)
+    await admin_coordinator.async_config_entry_first_refresh()
+
     entry.runtime_data = coordinator
+
+    # Store admin coordinator in hass.data for access by platform entities
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "admin_coordinator": admin_coordinator,
+    }
 
     # Forward to entity platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Clean up WebSocket on HA shutdown
+    # Clean up on HA shutdown
     async def _async_shutdown(_event: object) -> None:
         await coordinator.async_shutdown()
 
@@ -132,4 +144,5 @@ async def async_unload_entry(
     )
     if unload_ok:
         await coordinator.async_shutdown()
+        hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
