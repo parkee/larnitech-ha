@@ -62,6 +62,7 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             name=device_name,
             manufacturer="Larnitech",
             model=model_name or f"Module {module_id}",
+            suggested_area="System",
             via_device=(DOMAIN, entry_id),
         )
 
