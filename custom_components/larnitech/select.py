@@ -32,26 +32,14 @@ async def async_setup_entry(
     entry_id = entry.entry_id
     entities: list[SelectEntity] = []
 
-    # Fetch all HW configs in a single admin session
-    from pylarnitech.admin import LarnitechAdminClient
-    from homeassistant.const import CONF_HOST
-
-    host = entry.data[CONF_HOST]
-    hw_configs: dict[str, dict] = {}
+    # Fetch all HW configs through the shared admin coordinator
     try:
-        admin = LarnitechAdminClient(host=host)
-        await admin.login()
-        for module_id in coordinator.module_info:
-            try:
-                hw_configs[module_id] = await admin.get_module_hw_config(
-                    module_id
-                )
-            except Exception:
-                LOGGER.debug("HW config failed for module %s", module_id)
-        await admin.close()
+        hw_configs = await admin_coord.fetch_all_hw_configs(
+            list(coordinator.module_info.keys())
+        )
         LOGGER.debug("Fetched HW config for %d modules", len(hw_configs))
     except Exception:
-        LOGGER.warning("Could not connect to admin panel for pin config")
+        LOGGER.warning("Could not fetch HW configs for pin config")
         return
 
     for module_id, info in coordinator.module_info.items():

@@ -73,16 +73,17 @@ async def async_setup_entry(
         model="DE-MG",
     )
 
-    # Fetch module info from admin panel
-    from pylarnitech.admin import LarnitechAdminClient
+    # Create admin coordinator (shared session for all admin API calls)
+    admin_coordinator = LarnitechAdminCoordinator(hass, host)
 
+    # Fetch module info using the shared admin session
     module_info: dict = {}
     try:
-        admin = LarnitechAdminClient(host=host)
-        await admin.login()
-        module_info = await admin.get_modules()
+        module_info = await admin_coordinator._admin_call("get_modules")
         try:
-            extra = await admin.get_modules_extra_data()
+            extra = await admin_coordinator._admin_call(
+                "get_modules_extra_data"
+            )
             locations = (
                 extra.get("locations", {})
                 if isinstance(extra, dict)
@@ -96,7 +97,6 @@ async def async_setup_entry(
                     module_info[str(mid)]["primary_area"] = primary
         except Exception:
             LOGGER.debug("Could not load module extra data")
-        await admin.close()
         LOGGER.debug("Loaded %d module info from admin panel", len(module_info))
     except Exception:
         module_info = {}
@@ -107,8 +107,7 @@ async def async_setup_entry(
     coordinator.module_info = module_info
     await coordinator.async_config_entry_first_refresh()
 
-    # Create admin coordinator for module health (polls every 5 min)
-    admin_coordinator = LarnitechAdminCoordinator(hass, host)
+    # Start admin coordinator health polling
     await admin_coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
@@ -144,5 +143,8 @@ async def async_unload_entry(
     )
     if unload_ok:
         await coordinator.async_shutdown()
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        admin_data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, {})
+        admin_coord = admin_data.get("admin_coordinator")
+        if admin_coord:
+            await admin_coord.async_shutdown()
     return unload_ok

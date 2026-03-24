@@ -7,7 +7,6 @@ from typing import Any
 
 from pylarnitech.admin import LarnitechAdminClient
 
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -20,8 +19,8 @@ _ADMIN_POLL_INTERVAL = timedelta(minutes=5)
 class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     """Coordinator for Larnitech admin panel data.
 
-    Polls Modules.getModules every 5 minutes to get live module
-    health data (temperature, uptime, status, max temp).
+    Manages a single persistent admin session. Re-authenticates only
+    when a request fails with an auth error.
     """
 
     def __init__(
@@ -37,19 +36,47 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
             update_interval=_ADMIN_POLL_INTERVAL,
         )
         self._host = host
-        self.hw_configs: dict[str, dict[str, Any]] = {}
+        self._admin: LarnitechAdminClient | None = None
+        self._logged_in = False
+
+    async def _ensure_admin(self) -> LarnitechAdminClient:
+        """Get the admin client, creating and logging in if needed."""
+        if self._admin is None or self._admin._session is None or self._admin._session.closed:
+            if self._admin is not None:
+                try:
+                    await self._admin.close()
+                except Exception:
+                    pass
+            self._admin = LarnitechAdminClient(host=self._host)
+            self._logged_in = False
+
+        if not self._logged_in:
+            await self._admin.login()
+            self._logged_in = True
+
+        return self._admin
+
+    async def _admin_call(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        """Call an admin API method with auto-reauth on failure."""
+        admin = await self._ensure_admin()
+        try:
+            return await getattr(admin, method)(*args, **kwargs)
+        except Exception:
+            # Auth may have expired — re-login and retry once
+            self._logged_in = False
+            try:
+                admin = await self._ensure_admin()
+                return await getattr(admin, method)(*args, **kwargs)
+            except Exception:
+                raise
 
     async def _async_update_data(
         self,
     ) -> dict[str, dict[str, Any]]:
         """Fetch module health data from admin API."""
-        admin = LarnitechAdminClient(host=self._host)
         try:
-            await admin.login()
-            modules = await admin.get_modules()
-            # get_modules returns {mid: {model, serial, serial_dec, firmware}}
-            # We need more data — call getModules directly for temp/uptime
-            raw = await admin._api_call(
+            raw = await self._admin_call(
+                "_api_call",
                 "Modules.getModules",
                 ["", "", "", "", "-1", "", "id_asc"],
             )
@@ -72,28 +99,50 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 LOGGER.debug("Admin poll failed, keeping previous: %s", err)
                 return self.data
             raise UpdateFailed(f"Admin API error: {err}") from err
-        finally:
-            await admin.close()
 
     async def fetch_hw_config(self, module_id: str) -> dict[str, Any]:
         """Fetch hardware configuration for a single module."""
-        admin = LarnitechAdminClient(host=self._host)
-        try:
-            await admin.login()
-            return await admin.get_module_hw_config(module_id)
-        finally:
-            await admin.close()
+        return await self._admin_call("get_module_hw_config", module_id)
+
+    async def fetch_all_hw_configs(
+        self, module_ids: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Fetch HW config for multiple modules in one session."""
+        result: dict[str, dict[str, Any]] = {}
+        for mid in module_ids:
+            try:
+                result[mid] = await self._admin_call(
+                    "get_module_hw_config", mid
+                )
+            except Exception:
+                LOGGER.debug("HW config failed for module %s", mid)
+        return result
 
     async def set_hw_config(
         self, module_id: str, hw_config: str
     ) -> bool:
         """Set hardware configuration for a module."""
-        admin = LarnitechAdminClient(host=self._host)
-        try:
-            await admin.login()
-            return await admin.set_module_hw(module_id, hw_config)
-        finally:
-            await admin.close()
+        return await self._admin_call(
+            "set_module_hw", module_id, hw_config
+        )
+
+    async def reboot_module(
+        self, module_id: str, serial_dec: str
+    ) -> bool:
+        """Reboot a module."""
+        return await self._admin_call(
+            "reboot_module", module_id, serial_dec
+        )
+
+    async def async_shutdown(self) -> None:
+        """Close the admin session."""
+        if self._admin:
+            try:
+                await self._admin.close()
+            except Exception:
+                pass
+            self._admin = None
+            self._logged_in = False
 
 
 def _safe_int(value: Any) -> int | None:

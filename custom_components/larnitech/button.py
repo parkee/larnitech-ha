@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from pylarnitech.admin import LarnitechAdminClient
 from pylarnitech.const import DEVICE_TYPE_REMOTE_CONTROL, DEVICE_TYPE_SCRIPT
 from pylarnitech.models import LarnitechIRSignal
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
-from homeassistant.const import CONF_HOST, EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -43,15 +42,20 @@ async def async_setup_entry(
                 )
 
     # Add reboot buttons for each module that has serial info
+    from .admin_coordinator import LarnitechAdminCoordinator
+
     entry_id = entry.entry_id
-    host = entry.data[CONF_HOST]
+    admin_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    admin_coord: LarnitechAdminCoordinator | None = admin_data.get(
+        "admin_coordinator"
+    )
     for module_id, info in coordinator.module_info.items():
         serial_dec = info.get("serial_dec", "")
-        if serial_dec:
+        if serial_dec and admin_coord:
             entities.append(
                 LarnitechModuleRebootButton(
+                    admin_coord=admin_coord,
                     entry_id=entry_id,
-                    host=host,
                     module_id=module_id,
                     module_info=info,
                 )
@@ -130,13 +134,13 @@ class LarnitechModuleRebootButton(ButtonEntity):
 
     def __init__(
         self,
+        admin_coord,
         entry_id: str,
-        host: str,
         module_id: str,
         module_info: dict[str, str],
     ) -> None:
         """Initialize the reboot button."""
-        self._host = host
+        self._admin_coord = admin_coord
         self._module_id = module_id
         self._serial_dec = module_info.get("serial_dec", "")
         self._attr_unique_id = f"{entry_id}_{module_id}_reboot"
@@ -147,12 +151,10 @@ class LarnitechModuleRebootButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Reboot the module."""
-        admin = LarnitechAdminClient(host=self._host)
         try:
-            await admin.login()
-            await admin.reboot_module(self._module_id, self._serial_dec)
+            await self._admin_coord.reboot_module(
+                self._module_id, self._serial_dec
+            )
             LOGGER.info("Rebooted module %s", self._module_id)
         except Exception:
             LOGGER.exception("Failed to reboot module %s", self._module_id)
-        finally:
-            await admin.close()
