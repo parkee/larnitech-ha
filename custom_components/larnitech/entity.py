@@ -27,17 +27,19 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
         self._device = device
         self._addr = device.addr
 
-        # Unique ID: {controller_serial}_{device_addr}[_{suffix}]
+        # Unique ID: {entry_id}_{device_addr}[_{suffix}]
         entry_id = coordinator.config_entry.entry_id
         uid = f"{entry_id}_{device.addr}"
         if unique_id_suffix:
             uid = f"{uid}_{unique_id_suffix}"
         self._attr_unique_id = uid
 
-        # Device info: group entities by CAN module
+        # Each Larnitech device address is its own HA device.
+        # The API provides a unique name per address (e.g., "Office AC",
+        # "Office BW-AC Temp", "Office BW-AC CPU").
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry_id}_{device.module_id}")},
-            name=device.name or f"Module {device.module_id}",
+            identifiers={(DOMAIN, f"{entry_id}_{device.addr}")},
+            name=device.name or f"Device {device.addr}",
             manufacturer="Larnitech",
             model=device.type,
             via_device=(DOMAIN, entry_id),
