@@ -110,7 +110,6 @@ class LarnitechSensor(LarnitechEntity, SensorEntity):
     """Representation of a Larnitech numeric sensor."""
 
     entity_description: LarnitechSensorDescription
-    _attr_name = None
 
     def __init__(
         self,
@@ -141,7 +140,6 @@ class LarnitechVirtualSensor(LarnitechEntity, SensorEntity):
     Examples: "765mmHg", "few clouds", weather descriptions.
     """
 
-    _attr_name = None
 
     @property
     def native_value(self) -> str | None:
@@ -162,7 +160,6 @@ class LarnitechClimateControlSensor(LarnitechEntity, SensorEntity):
     the current temperature as a statusFloat2 value.
     """
 
-    _attr_name = None
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS

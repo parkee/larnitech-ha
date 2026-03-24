@@ -38,7 +38,6 @@ async def async_setup_entry(
 class LarnitechValve(LarnitechEntity, ValveEntity):
     """Representation of a Larnitech water/gas valve."""
 
-    _attr_name = None
     _attr_device_class = ValveDeviceClass.WATER
     _attr_reports_position = False
     _attr_supported_features = (

@@ -31,7 +31,6 @@ async def async_setup_entry(
 class LarnitechScriptButton(LarnitechEntity, ButtonEntity):
     """Representation of a Larnitech script trigger."""
 
-    _attr_name = None
 
     async def async_press(self) -> None:
         """Trigger the script."""

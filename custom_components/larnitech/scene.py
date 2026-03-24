@@ -33,7 +33,6 @@ async def async_setup_entry(
 class LarnitechScene(LarnitechEntity, Scene):
     """Representation of a Larnitech light scheme."""
 
-    _attr_name = None
 
     async def async_activate(self, **kwargs: Any) -> None:
         """Activate the scene."""

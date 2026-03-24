@@ -96,7 +96,6 @@ async def async_setup_entry(
 class LarnitechAC(LarnitechEntity, ClimateEntity):
     """Representation of a Larnitech AC unit."""
 
-    _attr_name = None
     _attr_translation_key = "larnitech_ac"
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_hvac_modes = [
@@ -253,7 +252,6 @@ class LarnitechValveHeating(LarnitechEntity, ClimateEntity):
     Only on/off control is available via the API.
     """
 
-    _attr_name = None
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
     _attr_supported_features = (

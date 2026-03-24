@@ -12,7 +12,11 @@ from .coordinator import LarnitechCoordinator
 
 
 class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
-    """Base entity for Larnitech devices."""
+    """Base entity for Larnitech devices.
+
+    Entities are grouped by CAN module ID into HA devices.
+    Each entity uses the API-provided name for its own display name.
+    """
 
     _attr_has_entity_name = True
 
@@ -34,17 +38,39 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             uid = f"{uid}_{unique_id_suffix}"
         self._attr_unique_id = uid
 
-        # Each Larnitech device address is its own HA device.
-        # The API provides a unique name per address (e.g., "Office AC",
-        # "Office BW-AC Temp", "Office BW-AC CPU").
+        # Entity name: use the API name (e.g., "Office BW-AC Temp")
+        # With has_entity_name=True, HA displays "{device_name} {entity_name}"
+        # so we use just the distinct part of the name.
+        self._attr_name = device.name or device.addr
+
+        # Group entities by CAN module into HA devices.
+        # Multiple Larnitech addresses on the same module (e.g., 407:1 AC
+        # and 407:30 temp sensor) become entities under one HA device.
+        module_id = device.module_id
+        module_name = self._get_module_name(coordinator, module_id)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry_id}_{device.addr}")},
-            name=device.name or f"Device {device.addr}",
+            identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
+            name=module_name,
             manufacturer="Larnitech",
-            model=device.type,
+            model=f"Module {module_id}",
             suggested_area=device.area or None,
             via_device=(DOMAIN, entry_id),
         )
+
+    @staticmethod
+    def _get_module_name(
+        coordinator: LarnitechCoordinator,
+        module_id: int,
+    ) -> str:
+        """Get a human-readable name for a CAN module.
+
+        Uses the name of the first device on the module that has a
+        meaningful name, stripping common suffixes like "Temp", "CPU".
+        """
+        for dev in coordinator.devices.values():
+            if dev.module_id == module_id and dev.name:
+                return dev.name
+        return f"Module {module_id}"
 
     @property
     def available(self) -> bool:

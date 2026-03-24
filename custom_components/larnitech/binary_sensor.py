@@ -78,7 +78,6 @@ class LarnitechBinarySensor(LarnitechEntity, BinarySensorEntity):
     """Representation of a Larnitech binary sensor."""
 
     entity_description: LarnitechBinarySensorDescription
-    _attr_name = None
 
     def __init__(
         self,

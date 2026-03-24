@@ -50,7 +50,6 @@ class LarnitechRemote(LarnitechEntity, RemoteEntity):
     Commands can be sent by signal name or numeric index.
     """
 
-    _attr_name = None
 
     def __init__(
         self,
@@ -121,7 +120,6 @@ class LarnitechIRTransmitter(LarnitechEntity, RemoteEntity):
     send_command accepts raw hex strings directly.
     """
 
-    _attr_name = None
 
     @property
     def is_on(self) -> bool:

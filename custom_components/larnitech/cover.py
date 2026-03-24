@@ -49,7 +49,6 @@ async def async_setup_entry(
 class LarnitechCover(LarnitechEntity, CoverEntity):
     """Representation of a Larnitech blind/cover."""
 
-    _attr_name = None
     _attr_supported_features = (
         CoverEntityFeature.OPEN
         | CoverEntityFeature.CLOSE

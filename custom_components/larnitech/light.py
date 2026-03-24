@@ -42,7 +42,6 @@ class LarnitechLight(LarnitechEntity, LightEntity):
 
     _attr_color_mode = ColorMode.ONOFF
     _attr_supported_color_modes = {ColorMode.ONOFF}
-    _attr_name = None
 
     @property
     def is_on(self) -> bool | None:
@@ -72,7 +71,6 @@ class LarnitechDimmerLight(LarnitechEntity, LightEntity):
 
     _attr_color_mode = ColorMode.BRIGHTNESS
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-    _attr_name = None
 
     @property
     def is_on(self) -> bool | None:
