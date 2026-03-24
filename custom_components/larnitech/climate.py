@@ -103,18 +103,34 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         # AC supports 0.5°C via statusFloat2 encoding
         step = device.extra.get("t-step")
         self._attr_target_temperature_step = float(step) if step else 0.5
+        # Local shadow of AC state — always reflects the last sent command.
+        # Prevents stale coordinator data from overwriting pending changes
+        # when multiple commands are sent in quick succession.
+        self._pending_state: ACState | None = None
 
-    def _decode_state(self) -> ACState:
-        """Decode the hex state to an ACState object."""
+    def _get_ac_state(self) -> ACState:
+        """Get the current AC state, preferring pending local state.
+
+        After a command, _pending_state holds what we last sent.
+        This ensures the next command reads the correct base state,
+        not stale coordinator data that hasn't been updated yet.
+        """
+        if self._pending_state is not None:
+            return self._pending_state
         status = self.device_status
         if status is None:
             return ACState.from_hex("")
         return ACState.from_hex(status.state)
 
+    def _handle_coordinator_update(self) -> None:
+        """Handle coordinator data update — clear pending state."""
+        self._pending_state = None
+        super()._handle_coordinator_update()
+
     @property
     def hvac_mode(self) -> HVACMode:
         """Return the current HVAC mode."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         if not ac.power:
             return HVACMode.OFF
         return _LARNITECH_TO_HVAC_MODE.get(ac.mode, HVACMode.AUTO)
@@ -122,7 +138,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the target temperature."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         if ac.temperature == 0:
             return None
         return float(ac.temperature)
@@ -130,21 +146,22 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     @property
     def fan_mode(self) -> str | None:
         """Return the current fan mode."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         return _LARNITECH_TO_FAN_MODE.get(ac.fan, "auto")
 
     async def _async_send_ac_state(self, ac: ACState) -> None:
-        """Send AC state and update HA optimistically."""
+        """Send AC state to controller and update local shadow."""
         await self.coordinator.client.set_device_status_raw(
             self._addr, ac.to_hex()
         )
-        # Optimistic update: write state immediately without polling
-        # The next WS push or scheduled poll will reconcile
+        # Store as pending state so the next command reads this,
+        # not stale coordinator data
+        self._pending_state = ac
         self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set the HVAC mode."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         if hvac_mode == HVACMode.OFF:
             ac.power = False
         else:
@@ -157,25 +174,25 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         ac.temperature = float(temperature)
         await self._async_send_ac_state(ac)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set the fan mode."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         ac.fan = _FAN_TO_LARNITECH.get(fan_mode, AC_FAN_AUTO)
         await self._async_send_ac_state(ac)
 
     async def async_turn_on(self) -> None:
         """Turn the AC on."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         ac.power = True
         await self._async_send_ac_state(ac)
 
     async def async_turn_off(self) -> None:
         """Turn the AC off."""
-        ac = self._decode_state()
+        ac = self._get_ac_state()
         ac.power = False
         await self._async_send_ac_state(ac)
 
