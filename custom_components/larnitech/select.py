@@ -185,7 +185,11 @@ class LarnitechPinSelect(SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
-        """Set the pin type."""
+        """Set the pin type.
+
+        Uses set_pin_type which fetches the current HW config and sends
+        ALL pins for the connector to avoid resetting other pins.
+        """
         code = self._option_map.get(option)
         if code is None:
             return
@@ -193,23 +197,35 @@ class LarnitechPinSelect(SelectEntity):
         if not letter:
             return
 
-        # Build the hw config string for this single pin change
-        hw_config = f"hw[{self._connector}][{self._pin_num}]={letter}"
         try:
-            await self._admin_coord.set_hw_config(
-                self._module_id, hw_config
-            )
-            self._attr_current_option = option
-            self._current_code = code
-            self.async_write_ha_state()
-            LOGGER.info(
-                "Set module %s %s pin %s to %s (%s)",
+            result = await self._admin_coord.set_pin_type(
                 self._module_id,
                 self._connector,
                 self._pin_num,
-                option,
                 letter,
             )
+            success = result.get("success", False) if isinstance(result, dict) else bool(result)
+            message = result.get("message", "") if isinstance(result, dict) else ""
+            if success:
+                self._attr_current_option = option
+                self._current_code = code
+                self.async_write_ha_state()
+                LOGGER.info(
+                    "Set module %s %s pin %s to %s (%s)",
+                    self._module_id,
+                    self._connector,
+                    self._pin_num,
+                    option,
+                    letter,
+                )
+            else:
+                LOGGER.warning(
+                    "HW config change rejected for module %s %s pin %s: %s",
+                    self._module_id,
+                    self._connector,
+                    self._pin_num,
+                    message,
+                )
         except Exception:
             LOGGER.exception(
                 "Failed to set pin %s/%s on module %s",

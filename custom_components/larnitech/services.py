@@ -57,17 +57,27 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up Larnitech service actions."""
 
     async def handle_set_module_hw(call: ServiceCall) -> None:
-        """Handle set_module_hw service call."""
+        """Handle set_module_hw service call.
+
+        hw_config should contain ALL pins for the connector, e.g.:
+        hw[IN][1]=K&hw[IN][2]=G&hw[IN][3]=K&...
+        Sending a single pin will reset all other pins to defaults.
+        """
         module_id = call.data["module_id"]
         hw_config = call.data["hw_config"]
         admin = await _get_admin(hass)
         try:
             result = await admin.set_module_hw(module_id, hw_config)
-            LOGGER.info(
-                "Set HW config for module %s: %s",
-                module_id,
-                "success" if result else "failed",
-            )
+            success = result.get("success", False) if isinstance(result, dict) else bool(result)
+            message = result.get("message", "") if isinstance(result, dict) else ""
+            if success:
+                LOGGER.info("Set HW config for module %s: success", module_id)
+            else:
+                LOGGER.warning(
+                    "Set HW config for module %s rejected: %s",
+                    module_id,
+                    message,
+                )
         finally:
             await admin.close()
 

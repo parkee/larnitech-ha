@@ -120,10 +120,35 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
 
     async def set_hw_config(
         self, module_id: str, hw_config: str
-    ) -> bool:
-        """Set hardware configuration for a module."""
+    ) -> dict:
+        """Set hardware configuration for a module (raw, all pins)."""
         return await self._admin_call(
             "set_module_hw", module_id, hw_config
+        )
+
+    async def set_pin_type(
+        self,
+        module_id: str,
+        connector: str,
+        pin_num: str,
+        hw_letter: str,
+    ) -> dict:
+        """Change a single pin's type, preserving all other pins."""
+        return await self._admin_call(
+            "set_module_pin_type", module_id, connector, pin_num, hw_letter
+        )
+
+    async def set_pin_param(
+        self,
+        module_id: str,
+        connector: str,
+        pin_num: str,
+        param_name: str,
+        value: int,
+    ) -> dict:
+        """Set a single pin parameter (min, max, runtime, etc)."""
+        return await self._admin_call(
+            "set_module_pin_param", module_id, connector, pin_num, param_name, value
         )
 
     async def reboot_module(

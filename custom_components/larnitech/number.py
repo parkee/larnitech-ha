@@ -158,18 +158,29 @@ class LarnitechPinNumber(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the parameter value."""
-        # Build hw config for this single param change
         int_val = int(value)
-        hw_config = (
-            f"hw[{self._connector}][{self._pin_num}]"
-            f"[{self._param_name}]={int_val}"
-        )
         try:
-            await self._admin_coord.set_hw_config(
-                self._module_id, hw_config
+            result = await self._admin_coord.set_pin_param(
+                self._module_id,
+                self._connector,
+                self._pin_num,
+                self._param_name,
+                int_val,
             )
-            self._attr_native_value = value
-            self.async_write_ha_state()
+            success = result.get("success", False) if isinstance(result, dict) else bool(result)
+            message = result.get("message", "") if isinstance(result, dict) else ""
+            if success:
+                self._attr_native_value = value
+                self.async_write_ha_state()
+            else:
+                LOGGER.warning(
+                    "Pin param change rejected for module %s %s/%s %s: %s",
+                    self._module_id,
+                    self._connector,
+                    self._pin_num,
+                    self._param_name,
+                    message,
+                )
         except Exception:
             LOGGER.exception(
                 "Failed to set %s on module %s pin %s/%s",
