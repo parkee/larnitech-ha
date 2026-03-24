@@ -71,11 +71,18 @@ async def async_setup_entry(
             continue
 
         # Build type code → display name mapping
-        type_names = {}
-        for code, name in types.items():
-            # Clean up TYPE_ prefix
-            display = name.replace("TYPE_", "").replace("_", " ").title()
-            type_names[code] = display
+        # types can be a dict {code: name} or a list [name, name, ...]
+        type_names: dict[str, str] = {}
+        if isinstance(types, dict):
+            for code, name in types.items():
+                if isinstance(name, str):
+                    display = name.replace("TYPE_", "").replace("TXT_", "").replace("_", " ").title()
+                    type_names[str(code)] = display
+        elif isinstance(types, list):
+            for idx, name in enumerate(types):
+                if isinstance(name, str):
+                    display = name.replace("TYPE_", "").replace("TXT_", "").replace("_", " ").title()
+                    type_names[str(idx)] = display
 
         # Create a select entity per pin per connector
         for connector, pins in data.items():
