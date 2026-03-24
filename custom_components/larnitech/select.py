@@ -34,8 +34,9 @@ async def async_setup_entry(
 
     # Fetch all HW configs in a single admin session
     from pylarnitech.admin import LarnitechAdminClient
+    from homeassistant.const import CONF_HOST
 
-    host = entry.data.get("host", "")
+    host = entry.data[CONF_HOST]
     hw_configs: dict[str, dict] = {}
     try:
         admin = LarnitechAdminClient(host=host)
