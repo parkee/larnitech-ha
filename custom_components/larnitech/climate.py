@@ -66,9 +66,9 @@ _LARNITECH_TO_FAN_MODE = {
 
 _FAN_TO_LARNITECH = {v: k for k, v in _LARNITECH_TO_FAN_MODE.items()}
 
-# Vertical swing: Auto (0) + positions 1-8
+# Vertical swing: Auto (0) + positions 1-6
 SWING_AUTO = "Auto"
-_VERT_SWING_MODES = [SWING_AUTO] + [str(i) for i in range(1, 9)]
+_VERT_SWING_MODES = [SWING_AUTO] + [str(i) for i in range(1, 7)]
 
 # Horizontal swing: positions 0-8 (no Auto — just numbered positions)
 _HORIZ_SWING_MODES = [str(i) for i in range(9)]
