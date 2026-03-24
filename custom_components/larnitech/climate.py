@@ -10,6 +10,7 @@ from pylarnitech.const import (
     AC_FAN_HIGH,
     AC_FAN_LOW,
     AC_FAN_MEDIUM,
+    AC_FAN_NIGHT,
     AC_FAN_TURBO,
     AC_MODE_AUTO,
     AC_MODE_COOL,
@@ -31,7 +32,6 @@ from homeassistant.components.climate.const import (
     FAN_HIGH,
     FAN_LOW,
     FAN_MEDIUM,
-    SWING_OFF,
 )
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
@@ -50,8 +50,10 @@ _LARNITECH_TO_HVAC_MODE = {
 
 _HVAC_TO_LARNITECH_MODE = {v: k for k, v in _LARNITECH_TO_HVAC_MODE.items()}
 
-FAN_TURBO = "turbo"
-FAN_NIGHT = "night"
+# Fan mode names: HA auto-capitalizes standard ones (auto/low/medium/high)
+# but custom modes stay as-is, so we capitalize them ourselves.
+FAN_TURBO = "Turbo"
+FAN_NIGHT = "Night"
 
 _LARNITECH_TO_FAN_MODE = {
     AC_FAN_AUTO: FAN_AUTO,
@@ -59,14 +61,15 @@ _LARNITECH_TO_FAN_MODE = {
     AC_FAN_MEDIUM: FAN_MEDIUM,
     AC_FAN_HIGH: FAN_HIGH,
     AC_FAN_TURBO: FAN_TURBO,
-    5: FAN_NIGHT,
+    AC_FAN_NIGHT: FAN_NIGHT,
 }
 
 _FAN_TO_LARNITECH = {v: k for k, v in _LARNITECH_TO_FAN_MODE.items()}
 
-# Swing/vane positions: "off"=auto(0), "1"-"6"=fixed positions
-# Position 7 is invalid on tested hardware (shows empty icon)
-_SWING_MODES = [SWING_OFF] + [str(i) for i in range(1, 7)]
+# Swing/vane positions: 0=Auto, 1-8=fixed positions
+# Verified: horizontal swing has 0-8 (9 total positions)
+SWING_AUTO = "Auto"
+_SWING_MODES = [SWING_AUTO] + [str(i) for i in range(1, 9)]
 
 
 
@@ -172,7 +175,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         """Return the vertical vane position."""
         ac = self._get_ac_state()
         if ac.vane_vertical == 0:
-            return SWING_OFF
+            return SWING_AUTO
         return str(ac.vane_vertical)
 
     @property
@@ -180,7 +183,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         """Return the horizontal vane position."""
         ac = self._get_ac_state()
         if ac.vane_horizontal == 0:
-            return SWING_OFF
+            return SWING_AUTO
         return str(ac.vane_horizontal)
 
     async def _async_send_ac_state(self, ac: ACState) -> None:
@@ -219,7 +222,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set the vertical vane position."""
         ac = self._get_ac_state()
-        ac.vane_vertical = 0 if swing_mode == SWING_OFF else int(swing_mode)
+        ac.vane_vertical = 0 if swing_mode == SWING_AUTO else int(swing_mode)
         await self._async_send_ac_state(ac)
 
     async def async_set_swing_horizontal_mode(
@@ -227,7 +230,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     ) -> None:
         """Set the horizontal vane position."""
         ac = self._get_ac_state()
-        ac.vane_horizontal = 0 if swing_mode == SWING_OFF else int(swing_mode)
+        ac.vane_horizontal = 0 if swing_mode == SWING_AUTO else int(swing_mode)
         await self._async_send_ac_state(ac)
 
     async def async_turn_on(self) -> None:

@@ -5,8 +5,8 @@
         "state_attributes": {
           "fan_mode": {
             "state": {
-              "turbo": "mdi:fan-plus",
-              "night": "mdi:weather-night"
+              "Turbo": "mdi:fan-plus",
+              "Night": "mdi:weather-night"
             }
           }
         }

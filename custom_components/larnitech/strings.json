@@ -27,30 +27,34 @@
         "state_attributes": {
           "fan_mode": {
             "state": {
-              "turbo": "Turbo",
-              "night": "Night"
+              "Turbo": "Turbo",
+              "Night": "Night"
             }
           },
           "swing_mode": {
             "state": {
-              "off": "Auto",
+              "Auto": "Auto",
               "1": "Position 1",
               "2": "Position 2",
               "3": "Position 3",
               "4": "Position 4",
               "5": "Position 5",
-              "6": "Position 6"
+              "6": "Position 6",
+              "7": "Position 7",
+              "8": "Position 8"
             }
           },
           "swing_horizontal_mode": {
             "state": {
-              "off": "Auto",
+              "Auto": "Auto",
               "1": "Position 1",
               "2": "Position 2",
               "3": "Position 3",
               "4": "Position 4",
               "5": "Position 5",
-              "6": "Position 6"
+              "6": "Position 6",
+              "7": "Position 7",
+              "8": "Position 8"
             }
           }
         }
