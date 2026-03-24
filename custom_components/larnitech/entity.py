@@ -51,7 +51,8 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
 
         # Group entities by CAN module into HA devices.
         module_id = device.module_id
-        model_name = self._get_module_model(coordinator, module_id)
+        # Use real model name from admin API if available
+        model_name = coordinator.module_models.get(str(module_id))
         if model_name:
             device_name = f"{model_name} ({module_id})"
         else:
@@ -63,52 +64,6 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             model=model_name or f"Module {module_id}",
             via_device=(DOMAIN, entry_id),
         )
-
-    @staticmethod
-    def _get_module_model(
-        coordinator: LarnitechCoordinator,
-        module_id: int,
-    ) -> str | None:
-        """Extract the module model name from system/diagnostic sensor names.
-
-        Sensors at address XX:98, XX:97, or XX:95 often have names like
-        "DW-010 Temperature", "BW-AC CPU", or "DW-BC03 Current".
-        The model is the prefix before the sensor type suffix.
-
-        Some modules have their :98 sensor in the room area (not "System")
-        with a generic name like "Temperature" — these are skipped.
-        """
-        suffixes = (
-            " Temperature", " Temp", " CPU", " Voltage", " Current",
-        )
-        for dev in coordinator.devices.values():
-            if dev.module_id != module_id:
-                continue
-            # Only look at diagnostic channels (98, 97, 95, 90-92)
-            if dev.channel_id not in (98, 97, 95, 90, 91, 92):
-                continue
-            for suffix in suffixes:
-                if suffix in dev.name:
-                    model = dev.name.split(suffix)[0].strip()
-                    # Skip generic names like "" or single words without a dash
-                    if model and "-" in model:
-                        return model
-
-        # Fallback: infer model from device types on this module
-        types = {
-            d.type
-            for d in coordinator.devices.values()
-            if d.module_id == module_id
-        }
-        if {"motion-sensor", "ir-transmitter"} <= types:
-            return "BW-MS"
-        if "switch" in types and len(types) <= 2:
-            return "BW-SW"
-        if "com-port" in types:
-            return "DW-DALI"
-        if "remote-control" in types:
-            return "Virtual"
-        return None
 
     async def async_added_to_hass(self) -> None:
         """Assign entity to the correct HA area after registration."""

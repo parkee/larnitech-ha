@@ -71,8 +71,22 @@ async def async_setup_entry(
         model="DE-MG",
     )
 
-    # Create coordinator (polls every 10s via HTTP API)
+    # Fetch real module model names from admin panel
+    from pylarnitech.admin import LarnitechAdminClient
+
+    try:
+        admin = LarnitechAdminClient(host=entry.data[CONF_HOST])
+        await admin.login()
+        module_models = await admin.get_modules()
+        await admin.close()
+        LOGGER.debug("Loaded %d module models from admin panel", len(module_models))
+    except Exception:
+        module_models = {}
+        LOGGER.debug("Could not load module models from admin panel")
+
+    # Create coordinator
     coordinator = LarnitechCoordinator(hass, entry, client)
+    coordinator.module_models = module_models
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
