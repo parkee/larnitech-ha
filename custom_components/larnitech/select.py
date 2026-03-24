@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -219,12 +220,8 @@ class LarnitechPinSelect(SelectEntity):
                     letter,
                 )
             else:
-                LOGGER.warning(
-                    "HW config change rejected for module %s %s pin %s: %s",
-                    self._module_id,
-                    self._connector,
-                    self._pin_num,
-                    message,
+                raise HomeAssistantError(
+                    f"Pin config change rejected: {message}"
                 )
         except Exception:
             LOGGER.exception(

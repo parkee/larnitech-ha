@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -173,13 +174,8 @@ class LarnitechPinNumber(NumberEntity):
                 self._attr_native_value = value
                 self.async_write_ha_state()
             else:
-                LOGGER.warning(
-                    "Pin param change rejected for module %s %s/%s %s: %s",
-                    self._module_id,
-                    self._connector,
-                    self._pin_num,
-                    self._param_name,
-                    message,
+                raise HomeAssistantError(
+                    f"Pin parameter change rejected: {message}"
                 )
         except Exception:
             LOGGER.exception(
