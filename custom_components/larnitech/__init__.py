@@ -25,6 +25,9 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Larnitech integration."""
+    from .services import async_setup_services
+
+    await async_setup_services(hass)
     return True
 
 

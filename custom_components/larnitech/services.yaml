@@ -1,0 +1,50 @@
+set_module_hw:
+  name: Set module hardware configuration
+  description: >-
+    Change the hardware pin configuration of a Larnitech CAN bus module.
+    This is equivalent to the admin panel's Hardware Configuration page.
+    Use with caution — incorrect configuration may affect device behavior.
+  fields:
+    module_id:
+      name: Module ID
+      description: The CAN bus module ID (e.g., 339)
+      required: true
+      example: "339"
+      selector:
+        text:
+    hw_config:
+      name: Hardware configuration
+      description: >-
+        URL-encoded hardware config string.
+        Format: hw[CONNECTOR][PIN]=TYPE&...
+        Example: hw[IN][1]=K&hw[IN][2]=G
+      required: true
+      example: "hw[IN][1]=K&hw[IN][2]=G&hw[IN][3]=K"
+      selector:
+        text:
+
+get_module_hw_config:
+  name: Get module hardware configuration
+  description: >-
+    Retrieve the current hardware configuration of a module.
+    Returns pin types, available options, and current settings.
+  fields:
+    module_id:
+      name: Module ID
+      description: The CAN bus module ID (e.g., 339)
+      required: true
+      example: "339"
+      selector:
+        text:
+
+get_module_logs:
+  name: Get module logs
+  description: Retrieve event logs for a specific module.
+  fields:
+    module_id:
+      name: Module ID
+      description: The CAN bus module ID (e.g., 339)
+      required: true
+      example: "339"
+      selector:
+        text:
