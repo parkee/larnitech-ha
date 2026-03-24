@@ -18,6 +18,7 @@ from .coordinator import LarnitechConfigEntry
 from .entity import LarnitechEntity
 
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: LarnitechConfigEntry,

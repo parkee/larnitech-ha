@@ -23,6 +23,7 @@ from .coordinator import LarnitechConfigEntry
 from .entity import LarnitechEntity
 
 
+
 @dataclass(frozen=True, kw_only=True)
 class LarnitechBinarySensorDescription(BinarySensorEntityDescription):
     """Describe a Larnitech binary sensor."""

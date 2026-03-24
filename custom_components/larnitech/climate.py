@@ -62,8 +62,6 @@ _LARNITECH_TO_FAN_MODE = {
 
 _FAN_TO_LARNITECH = {v: k for k, v in _LARNITECH_TO_FAN_MODE.items()}
 
-# Swing/vane positions: 0=auto, 1-7=fixed positions
-_SWING_MODES = [SWING_OFF] + [str(i) for i in range(1, 8)]
 
 
 async def async_setup_entry(
@@ -88,6 +86,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
     """Representation of a Larnitech AC unit."""
 
     _attr_name = None
+    _attr_translation_key = "larnitech_ac"
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_hvac_modes = [
         HVACMode.OFF,
@@ -98,17 +97,6 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         HVACMode.DRY,
     ]
     _attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_TURBO]
-    _attr_translation_key = "larnitech_ac"
-    _attr_swing_modes = _SWING_MODES
-    _attr_swing_horizontal_modes = _SWING_MODES
-    _attr_supported_features = (
-        ClimateEntityFeature.TARGET_TEMPERATURE
-        | ClimateEntityFeature.FAN_MODE
-        | ClimateEntityFeature.SWING_MODE
-        | ClimateEntityFeature.SWING_HORIZONTAL_MODE
-        | ClimateEntityFeature.TURN_ON
-        | ClimateEntityFeature.TURN_OFF
-    )
 
     def __init__(self, coordinator, device):
         """Initialize the AC entity."""
@@ -117,21 +105,55 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         t_delta = int(device.extra.get("t-delta", 16))
         self._attr_min_temp = t_min
         self._attr_max_temp = t_min + t_delta
-        # AC supports 0.5°C via statusFloat2 encoding
         step = device.extra.get("t-step")
         self._attr_target_temperature_step = float(step) if step else 0.5
-        # Local shadow of AC state — always reflects the last sent command.
-        # Prevents stale coordinator data from overwriting pending changes
-        # when multiple commands are sent in quick succession.
+
+        # Pending state shadow for optimistic updates
         self._pending_state: ACState | None = None
 
-    def _get_ac_state(self) -> ACState:
-        """Get the current AC state, preferring pending local state.
+        # Determine swing support from initial device state
+        features = (
+            ClimateEntityFeature.TARGET_TEMPERATURE
+            | ClimateEntityFeature.FAN_MODE
+            | ClimateEntityFeature.TURN_ON
+            | ClimateEntityFeature.TURN_OFF
+        )
 
-        After a command, _pending_state holds what we last sent.
-        This ensures the next command reads the correct base state,
-        not stale coordinator data that hasn't been updated yet.
-        """
+        # Check vane-hor/vane-ver attributes if available
+        vane_hor_mask = int(device.extra.get("vane-hor", "0"), 0) if device.extra.get("vane-hor") else None
+        vane_ver_mask = int(device.extra.get("vane-ver", "0"), 0) if device.extra.get("vane-ver") else None
+
+        # If attributes not in API, probe initial state for vane support
+        status = coordinator.get_status(device.addr)
+        if status and status.state and len(status.state) >= 8:
+            ac = ACState.from_hex(status.state)
+            # If vane values are non-zero in initial state, the AC supports them
+            if vane_ver_mask is None and ac.vane_vertical > 0:
+                vane_ver_mask = 0x7F  # Assume full range
+            if vane_hor_mask is None and ac.vane_horizontal > 0:
+                vane_hor_mask = 0x7F
+
+        if vane_ver_mask:
+            features |= ClimateEntityFeature.SWING_MODE
+            # Build swing modes from bitmask
+            modes = [SWING_OFF]
+            for i in range(1, 8):
+                if vane_ver_mask & (1 << (i - 1)):
+                    modes.append(str(i))
+            self._attr_swing_modes = modes
+
+        if vane_hor_mask:
+            features |= ClimateEntityFeature.SWING_HORIZONTAL_MODE
+            modes = [SWING_OFF]
+            for i in range(1, 8):
+                if vane_hor_mask & (1 << (i - 1)):
+                    modes.append(str(i))
+            self._attr_swing_horizontal_modes = modes
+
+        self._attr_supported_features = features
+
+    def _get_ac_state(self) -> ACState:
+        """Get AC state, preferring pending local state over coordinator."""
         if self._pending_state is not None:
             return self._pending_state
         status = self.device_status
@@ -140,7 +162,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
         return ACState.from_hex(status.state)
 
     def _handle_coordinator_update(self) -> None:
-        """Handle coordinator data update — clear pending state."""
+        """Handle coordinator update — clear pending state."""
         self._pending_state = None
         super()._handle_coordinator_update()
 
@@ -168,7 +190,7 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
 
     @property
     def swing_mode(self) -> str | None:
-        """Return the current vertical vane position."""
+        """Return the vertical vane position."""
         ac = self._get_ac_state()
         if ac.vane_vertical == 0:
             return SWING_OFF
@@ -176,19 +198,17 @@ class LarnitechAC(LarnitechEntity, ClimateEntity):
 
     @property
     def swing_horizontal_mode(self) -> str | None:
-        """Return the current horizontal vane position."""
+        """Return the horizontal vane position."""
         ac = self._get_ac_state()
         if ac.vane_horizontal == 0:
             return SWING_OFF
         return str(ac.vane_horizontal)
 
     async def _async_send_ac_state(self, ac: ACState) -> None:
-        """Send AC state to controller and update local shadow."""
+        """Send AC state and update optimistically."""
         await self.coordinator.client.set_device_status_raw(
             self._addr, ac.to_hex()
         )
-        # Store as pending state so the next command reads this,
-        # not stale coordinator data
         self._pending_state = ac
         self.async_write_ha_state()
 

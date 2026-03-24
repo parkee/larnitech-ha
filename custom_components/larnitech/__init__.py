@@ -13,9 +13,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     CONF_API_KEY,
     CONF_HTTP_PORT,
-    CONF_WS_PORT,
     DEFAULT_HTTP_PORT,
-    DEFAULT_WS_PORT,
     DOMAIN,
     LOGGER,
     PLATFORMS,
@@ -35,14 +33,12 @@ async def async_setup_entry(
     entry: LarnitechConfigEntry,
 ) -> bool:
     """Set up Larnitech from a config entry."""
-    # Note: we do NOT pass HA's shared session because the Larnitech
-    # controller sends non-standard 'Connection: Closed' (capital C)
-    # which breaks aiohttp keep-alive. pylarnitech creates its own
-    # session with force_close=True.
+    # Do NOT pass HA's shared session — the Larnitech controller sends
+    # non-standard 'Connection: Closed' (capital C) which breaks aiohttp
+    # keep-alive. pylarnitech creates its own session with force_close=True.
     client = LarnitechClient(
         host=entry.data[CONF_HOST],
         api_key=entry.data[CONF_API_KEY],
-        ws_port=entry.data.get(CONF_WS_PORT, DEFAULT_WS_PORT),
         http_port=entry.data.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT),
     )
 
@@ -75,7 +71,7 @@ async def async_setup_entry(
         model="DE-MG",
     )
 
-    # Create coordinator
+    # Create coordinator (polls every 10s via HTTP API)
     coordinator = LarnitechCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
 
@@ -84,7 +80,7 @@ async def async_setup_entry(
     # Forward to entity platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Clean up on HA shutdown
+    # Clean up WebSocket on HA shutdown
     async def _async_shutdown(_event: object) -> None:
         await coordinator.async_shutdown()
 

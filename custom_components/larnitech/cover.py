@@ -22,6 +22,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .coordinator import LarnitechConfigEntry
 from .entity import LarnitechEntity
 
+
 _COVER_DEVICE_CLASSES = {
     DEVICE_TYPE_BLINDS: CoverDeviceClass.BLIND,
     DEVICE_TYPE_JALOUSIE: CoverDeviceClass.SHUTTER,

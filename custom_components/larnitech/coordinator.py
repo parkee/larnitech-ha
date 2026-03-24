@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from pylarnitech import LarnitechClient, LarnitechDevice, LarnitechDeviceStatus
@@ -14,13 +15,21 @@ from .const import DOMAIN, LOGGER
 
 type LarnitechConfigEntry = ConfigEntry[LarnitechCoordinator]
 
+# Fallback poll interval. WebSocket push handles most updates in real-time,
+# but polling catches anything missed (e.g. if WS connection drops).
+_POLL_INTERVAL = timedelta(seconds=30)
+
 
 class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus]]):
     """Coordinator for Larnitech devices.
 
-    Uses HTTP API for commands (reliable request-response).
-    Uses WebSocket for real-time push updates when connected.
-    Falls back to HTTP polling when WebSocket is unavailable.
+    Primary: WebSocket push (port 8080) for real-time status changes.
+    Fallback: HTTP polling every 30s via getAllDevicesStatus.
+
+    The Larnitech WebSocket pushes 'deviceStatusChange' messages
+    whenever any device state changes (from app, physical controls, etc).
+    The WS connection must have an initial request sent to "subscribe"
+    — after that, all changes are pushed automatically.
     """
 
     config_entry: LarnitechConfigEntry
@@ -37,6 +46,7 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
             LOGGER,
             name=DOMAIN,
             config_entry=config_entry,
+            update_interval=_POLL_INTERVAL,
         )
         self.client = client
         self.devices: dict[str, LarnitechDevice] = {}
@@ -48,26 +58,30 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
         self.devices = {d.addr: d for d in device_list}
         LOGGER.debug("Loaded %d devices from controller", len(self.devices))
 
-        # Try to establish WebSocket for push updates
+        # Set up WebSocket for real-time push
         try:
             await self.client.connect(auto_reconnect=True)
             self._unsub_ws.append(
-                self.client.on_status_update(self._handle_ws_update)
-            )
-            self._unsub_ws.append(
-                self.client.on_disconnect(self._handle_ws_disconnect)
+                self.client.on_status_update(self._handle_ws_push)
             )
             LOGGER.debug("WebSocket connected for push updates")
+
+            # Send an initial request to "subscribe" to push events.
+            # The Seasocks server starts pushing deviceStatusChange
+            # messages after the first request on the WS connection.
+            await self.client.ws_send_json(
+                {"requestType": "getAllDevicesStatus"}
+            )
+            LOGGER.debug("WebSocket subscribed to status changes")
         except Exception:
-            LOGGER.debug(
-                "WebSocket not available, will use HTTP polling",
-                exc_info=True,
+            LOGGER.info(
+                "WebSocket not available, using HTTP polling only"
             )
 
     async def _async_update_data(
         self,
     ) -> dict[str, LarnitechDeviceStatus]:
-        """Fetch latest statuses via HTTP API."""
+        """Fetch latest statuses via HTTP API (fallback poll)."""
         try:
             statuses = await self.client.get_all_statuses()
         except Exception as err:
@@ -75,13 +89,16 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
                 f"Error fetching device statuses: {err}"
             ) from err
         if not statuses:
-            # Return previous data if available, empty dict otherwise
             return self.data or {}
         return {s.addr: s for s in statuses}
 
     @callback
-    def _handle_ws_update(self, data: dict[str, Any]) -> None:
-        """Handle a status push from WebSocket."""
+    def _handle_ws_push(self, data: dict[str, Any]) -> None:
+        """Handle a real-time status push from WebSocket.
+
+        Push messages have requestType 'deviceStatusChange' with the
+        same 'status' structure as getDeviceStatus responses.
+        """
         if not isinstance(data, dict):
             return
         status = data.get("status")
@@ -91,16 +108,10 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
         if not addr:
             return
 
-        # Update our data with the new status
         device_status = LarnitechDeviceStatus.from_dict(status)
-        current = self.data if self.data is not None else {}
+        current = dict(self.data) if self.data is not None else {}
         current[addr] = device_status
         self.async_set_updated_data(current)
-
-    @callback
-    def _handle_ws_disconnect(self) -> None:
-        """Handle WebSocket disconnect."""
-        LOGGER.warning("WebSocket disconnected, falling back to polling")
 
     async def async_shutdown(self) -> None:
         """Clean up on shutdown."""
