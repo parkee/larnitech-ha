@@ -95,8 +95,16 @@ class LarnitechIRSignalButton(ButtonEntity):
         self._attr_name = (
             f"{signal.name or f'Signal {index}'} ({device.addr})"
         )
+        # Use hash of IR signal value as stable unique ID.
+        # Index-based IDs would break when signals are added/deleted
+        # (all subsequent signals would shift).
+        import hashlib
+
+        sig_hash = hashlib.md5(
+            signal.value.encode()
+        ).hexdigest()[:8]
         self._attr_unique_id = (
-            f"{entry_id}_{device.addr}_signal_{index}"
+            f"{entry_id}_{device.addr}_ir_{sig_hash}"
         )
 
         module_id = device.module_id
