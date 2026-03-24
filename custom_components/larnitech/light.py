@@ -22,7 +22,6 @@ from .coordinator import LarnitechConfigEntry
 from .entity import LarnitechEntity
 
 
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: LarnitechConfigEntry,
@@ -38,8 +37,6 @@ async def async_setup_entry(
         elif device.type == DEVICE_TYPE_DIMMER_LAMP:
             entities.append(LarnitechDimmerLight(coordinator, device))
         elif device.type == DEVICE_TYPE_LIGHT_SCHEME:
-            # Light schemes are groups of lights — behave like a
-            # dimmable light with on/off and brightness control.
             entities.append(LarnitechLightScheme(coordinator, device))
 
     async_add_entities(entities)
@@ -64,6 +61,7 @@ class LarnitechLight(LarnitechEntity, LightEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "on"}
         )
+        self._set_pending_status("on")
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -71,6 +69,7 @@ class LarnitechLight(LarnitechEntity, LightEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "off"}
         )
+        self._set_pending_status("off")
         self.async_write_ha_state()
 
 
@@ -103,10 +102,12 @@ class LarnitechDimmerLight(LarnitechEntity, LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
         cmd: dict[str, Any] = {"state": "on"}
+        brightness_100 = None
         if ATTR_BRIGHTNESS in kwargs:
-            # HA: 0-255, Larnitech: 0-100
-            cmd["brightness"] = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+            brightness_100 = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+            cmd["brightness"] = brightness_100
         await self.coordinator.client.set_device_status(self._addr, cmd)
+        self._set_pending_status("on", brightness=brightness_100)
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -114,6 +115,7 @@ class LarnitechDimmerLight(LarnitechEntity, LightEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "off"}
         )
+        self._set_pending_status("off")
         self.async_write_ha_state()
 
 
@@ -139,12 +141,14 @@ class LarnitechLightScheme(LarnitechEntity, LightEntity):
 
     @property
     def brightness(self) -> int | None:
-        """Return brightness (not available from API readback)."""
+        """Return brightness."""
         status = self.device_status
         if status is None:
             return None
-        # API only reports on/off, not brightness level.
-        # Return max when on, None when off.
+        # Check pending status for brightness
+        if status.brightness is not None:
+            return round(status.brightness * 255 / 100)
+        # API only reports on/off; return max when on
         if status.state == "on":
             return 255
         return 0
@@ -152,9 +156,12 @@ class LarnitechLightScheme(LarnitechEntity, LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light group."""
         cmd: dict[str, Any] = {"state": "on"}
+        brightness_100 = None
         if ATTR_BRIGHTNESS in kwargs:
-            cmd["brightness"] = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+            brightness_100 = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+            cmd["brightness"] = brightness_100
         await self.coordinator.client.set_device_status(self._addr, cmd)
+        self._set_pending_status("on", brightness=brightness_100)
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -162,4 +169,5 @@ class LarnitechLightScheme(LarnitechEntity, LightEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "off"}
         )
+        self._set_pending_status("off")
         self.async_write_ha_state()

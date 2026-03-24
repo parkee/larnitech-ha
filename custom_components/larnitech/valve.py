@@ -57,6 +57,7 @@ class LarnitechValve(LarnitechEntity, ValveEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "open"}
         )
+        self._set_pending_status("open")
         self.async_write_ha_state()
 
     async def async_close_valve(self, **kwargs: Any) -> None:
@@ -64,4 +65,5 @@ class LarnitechValve(LarnitechEntity, ValveEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": "closed"}
         )
+        self._set_pending_status("closed")
         self.async_write_ha_state()

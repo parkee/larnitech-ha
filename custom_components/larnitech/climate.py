@@ -305,6 +305,7 @@ class LarnitechValveHeating(LarnitechEntity, ClimateEntity):
         await self.coordinator.client.set_device_status(
             self._addr, {"state": state}
         )
+        self._set_pending_status(state)
         self.async_write_ha_state()
 
     async def async_turn_on(self) -> None:
