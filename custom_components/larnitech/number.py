@@ -168,15 +168,6 @@ class LarnitechPinNumber(NumberEntity):
                 self._param_name,
                 int_val,
             )
-            success = result.get("success", False) if isinstance(result, dict) else bool(result)
-            message = result.get("message", "") if isinstance(result, dict) else ""
-            if success:
-                self._attr_native_value = value
-                self.async_write_ha_state()
-            else:
-                raise HomeAssistantError(
-                    f"Pin parameter change rejected: {message}"
-                )
         except Exception:
             LOGGER.exception(
                 "Failed to set %s on module %s pin %s/%s",
@@ -185,3 +176,16 @@ class LarnitechPinNumber(NumberEntity):
                 self._connector,
                 self._pin_num,
             )
+            raise HomeAssistantError(
+                f"Failed to set {self._param_name} on pin {self._connector}/{self._pin_num}"
+            ) from None
+
+        success = result.get("success", False) if isinstance(result, dict) else bool(result)
+        message = result.get("message", "") if isinstance(result, dict) else ""
+        if not success:
+            raise HomeAssistantError(
+                f"Pin parameter change rejected: {message}"
+            )
+
+        self._attr_native_value = value
+        self.async_write_ha_state()

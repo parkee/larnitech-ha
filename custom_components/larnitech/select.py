@@ -205,24 +205,6 @@ class LarnitechPinSelect(SelectEntity):
                 self._pin_num,
                 letter,
             )
-            success = result.get("success", False) if isinstance(result, dict) else bool(result)
-            message = result.get("message", "") if isinstance(result, dict) else ""
-            if success:
-                self._attr_current_option = option
-                self._current_code = code
-                self.async_write_ha_state()
-                LOGGER.info(
-                    "Set module %s %s pin %s to %s (%s)",
-                    self._module_id,
-                    self._connector,
-                    self._pin_num,
-                    option,
-                    letter,
-                )
-            else:
-                raise HomeAssistantError(
-                    f"Pin config change rejected: {message}"
-                )
         except Exception:
             LOGGER.exception(
                 "Failed to set pin %s/%s on module %s",
@@ -230,3 +212,17 @@ class LarnitechPinSelect(SelectEntity):
                 self._pin_num,
                 self._module_id,
             )
+            raise HomeAssistantError(
+                f"Failed to set pin {self._connector}/{self._pin_num}"
+            ) from None
+
+        success = result.get("success", False) if isinstance(result, dict) else bool(result)
+        message = result.get("message", "") if isinstance(result, dict) else ""
+        if not success:
+            raise HomeAssistantError(
+                f"Pin config change rejected: {message}"
+            )
+
+        self._attr_current_option = option
+        self._current_code = code
+        self.async_write_ha_state()
