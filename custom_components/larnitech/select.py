@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .admin_coordinator import LarnitechAdminCoordinator
 from .const import DOMAIN, LOGGER
@@ -103,11 +104,6 @@ async def async_setup_entry(
             for pin_num, pin_data in pins.items():
                 if not isinstance(pin_data, (dict, int)):
                     continue
-                current_value = (
-                    pin_data.get("value")
-                    if isinstance(pin_data, dict)
-                    else pin_data
-                )
 
                 # Build options: code → display name
                 options = []
@@ -118,11 +114,6 @@ async def async_setup_entry(
 
                 if not options:
                     continue
-
-                # Current selection
-                current_display = type_names.get(
-                    str(current_value), f"Unknown ({current_value})"
-                )
 
                 entities.append(
                     LarnitechPinSelect(
@@ -135,16 +126,22 @@ async def async_setup_entry(
                         options=sorted(options),
                         option_map=option_map,
                         code_to_letter=code_to_letter,
-                        current_display=current_display,
-                        current_code=str(current_value),
+                        type_names=type_names,
                     )
                 )
 
     async_add_entities(entities)
 
 
-class LarnitechPinSelect(SelectEntity):
-    """Select entity for configuring a module pin type."""
+class LarnitechPinSelect(
+    CoordinatorEntity[LarnitechAdminCoordinator], SelectEntity
+):
+    """Select entity for configuring a module pin type.
+
+    Reads the current pin value from the admin coordinator's polled
+    HW config data, so external changes (e.g., via Larnitech UI) are
+    reflected within 5 minutes.
+    """
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
@@ -161,20 +158,18 @@ class LarnitechPinSelect(SelectEntity):
         options: list[str],
         option_map: dict[str, str],
         code_to_letter: dict[str, str],
-        current_display: str,
-        current_code: str,
+        type_names: dict[str, str],
     ) -> None:
         """Initialize the pin select."""
-        self._admin_coord = admin_coord
+        super().__init__(admin_coord)
         self._module_id = module_id
         self._connector = connector
         self._pin_num = pin_num
         self._option_map = option_map
         self._code_to_letter = code_to_letter
-        self._current_code = current_code
+        self._type_names = type_names
 
         self._attr_options = options
-        self._attr_current_option = current_display
         self._attr_name = (
             f"{connector} Pin {pin_num} ({module_id})"
         )
@@ -185,11 +180,33 @@ class LarnitechPinSelect(SelectEntity):
             identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
         )
 
+    @property
+    def current_option(self) -> str | None:
+        """Return the current pin type from polled HW config data."""
+        if self.coordinator.data:
+            module_data = self.coordinator.data.get(self._module_id, {})
+            hw_config = module_data.get("hw_config")
+            if isinstance(hw_config, dict):
+                data = hw_config.get("data", {})
+                conn_pins = data.get(self._connector, {})
+                pin_data = conn_pins.get(self._pin_num)
+                if pin_data is not None:
+                    current_code = (
+                        pin_data.get("value")
+                        if isinstance(pin_data, dict)
+                        else pin_data
+                    )
+                    return self._type_names.get(
+                        str(current_code),
+                        f"Unknown ({current_code})",
+                    )
+        return None
+
     async def async_select_option(self, option: str) -> None:
         """Set the pin type.
 
         Uses set_pin_type which fetches the current HW config and sends
-        ALL pins for the connector to avoid resetting other pins.
+        ALL pins for all connectors to avoid resetting other pins.
         """
         code = self._option_map.get(option)
         if code is None:
@@ -199,7 +216,7 @@ class LarnitechPinSelect(SelectEntity):
             return
 
         try:
-            result = await self._admin_coord.set_pin_type(
+            result = await self.coordinator.set_pin_type(
                 self._module_id,
                 self._connector,
                 self._pin_num,
@@ -222,7 +239,3 @@ class LarnitechPinSelect(SelectEntity):
             raise HomeAssistantError(
                 f"Pin config change rejected: {message}"
             )
-
-        self._attr_current_option = option
-        self._current_code = code
-        self.async_write_ha_state()

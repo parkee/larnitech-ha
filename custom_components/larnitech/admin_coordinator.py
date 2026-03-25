@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import LOGGER
 
-# Poll module health every 5 minutes (temp, uptime, status)
+# Poll module health + HW config every 5 minutes
 _ADMIN_POLL_INTERVAL = timedelta(minutes=5)
 
 
@@ -21,6 +21,9 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
 
     Manages a single persistent admin session. Re-authenticates only
     when a request fails with an auth error.
+
+    Polls module health (temp, uptime, status) and HW configs every
+    5 minutes so that select/number entities reflect external changes.
     """
 
     def __init__(
@@ -38,6 +41,8 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         self._host = host
         self._admin: LarnitechAdminClient | None = None
         self._logged_in = False
+        # Module IDs that have HW configs (populated by fetch_all_hw_configs)
+        self._hw_module_ids: set[str] = set()
 
     async def _ensure_admin(self) -> LarnitechAdminClient:
         """Get the admin client, creating and logging in if needed."""
@@ -73,7 +78,7 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
     async def _async_update_data(
         self,
     ) -> dict[str, dict[str, Any]]:
-        """Fetch module health data from admin API."""
+        """Fetch module health data and HW configs from admin API."""
         try:
             raw = await self._admin_call(
                 "_api_call",
@@ -93,6 +98,24 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                         "status": m.get("module_status", 0),
                         "logic": m.get("module_logic_txt"),
                     }
+
+            # Also refresh HW configs for tracked modules
+            for mid in self._hw_module_ids:
+                try:
+                    hw = await self._admin_call(
+                        "get_module_hw_config", mid
+                    )
+                    if mid in result:
+                        result[mid]["hw_config"] = hw
+                    else:
+                        result[mid] = {"hw_config": hw}
+                except Exception:
+                    # Keep previous HW config on failure
+                    if self.data and mid in self.data:
+                        prev_hw = self.data[mid].get("hw_config")
+                        if prev_hw:
+                            result.setdefault(mid, {})["hw_config"] = prev_hw
+
             return result
         except Exception as err:
             if self.data:
@@ -102,6 +125,7 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
 
     async def fetch_hw_config(self, module_id: str) -> dict[str, Any]:
         """Fetch hardware configuration for a single module."""
+        self._hw_module_ids.add(module_id)
         return await self._admin_call("get_module_hw_config", module_id)
 
     async def fetch_all_hw_configs(
@@ -111,9 +135,12 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         result: dict[str, dict[str, Any]] = {}
         for mid in module_ids:
             try:
-                result[mid] = await self._admin_call(
+                hw = await self._admin_call(
                     "get_module_hw_config", mid
                 )
+                result[mid] = hw
+                # Track for periodic refresh
+                self._hw_module_ids.add(mid)
             except Exception:
                 LOGGER.debug("HW config failed for module %s", mid)
         return result
@@ -134,9 +161,12 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         hw_letter: str,
     ) -> dict:
         """Change a single pin's type, preserving all other pins."""
-        return await self._admin_call(
+        result = await self._admin_call(
             "set_module_pin_type", module_id, connector, pin_num, hw_letter
         )
+        # Trigger a data refresh so all entities see the change
+        await self.async_request_refresh()
+        return result
 
     async def set_pin_param(
         self,
@@ -147,9 +177,11 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
         value: int,
     ) -> dict:
         """Set a single pin parameter (min, max, runtime, etc)."""
-        return await self._admin_call(
+        result = await self._admin_call(
             "set_module_pin_param", module_id, connector, pin_num, param_name, value
         )
+        await self.async_request_refresh()
+        return result
 
     async def reboot_module(
         self, module_id: str, serial_dec: str

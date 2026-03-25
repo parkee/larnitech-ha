@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .admin_coordinator import LarnitechAdminCoordinator
 from .const import DOMAIN, LOGGER
@@ -86,12 +87,6 @@ async def async_setup_entry(
                     if param_name not in pin_hw:
                         continue
 
-                    current_val = pin_hw.get(param_name, 0)
-                    try:
-                        current_val = float(current_val)
-                    except (ValueError, TypeError):
-                        current_val = param_def.get("defaultValue", 0)
-
                     entities.append(
                         LarnitechPinNumber(
                             admin_coord=admin_coord,
@@ -103,15 +98,20 @@ async def async_setup_entry(
                             label=label,
                             min_val=param_min,
                             max_val=param_max,
-                            current_val=current_val,
                         )
                     )
 
     async_add_entities(entities)
 
 
-class LarnitechPinNumber(NumberEntity):
-    """Number entity for a module pin parameter (min, max, runtime, etc)."""
+class LarnitechPinNumber(
+    CoordinatorEntity[LarnitechAdminCoordinator], NumberEntity
+):
+    """Number entity for a module pin parameter (min, max, runtime, etc).
+
+    Reads the current value from the admin coordinator's polled HW
+    config data so external changes are reflected within 5 minutes.
+    """
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
@@ -128,10 +128,9 @@ class LarnitechPinNumber(NumberEntity):
         label: str,
         min_val: float,
         max_val: float,
-        current_val: float,
     ) -> None:
         """Initialize the pin parameter number."""
-        self._admin_coord = admin_coord
+        super().__init__(admin_coord)
         self._module_id = module_id
         self._connector = connector
         self._pin_num = pin_num
@@ -139,7 +138,6 @@ class LarnitechPinNumber(NumberEntity):
 
         self._attr_native_min_value = min_val
         self._attr_native_max_value = max_val
-        self._attr_native_value = current_val
         self._attr_native_step = 1.0
         self._attr_name = (
             f"{label} Pin {pin_num} ({module_id})"
@@ -157,11 +155,27 @@ class LarnitechPinNumber(NumberEntity):
         elif param_name in ("min", "max", "start", "force"):
             self._attr_native_unit_of_measurement = "%"
 
+    @property
+    def native_value(self) -> float | None:
+        """Return the current param value from polled HW config data."""
+        if self.coordinator.data:
+            module_data = self.coordinator.data.get(self._module_id, {})
+            hw_config = module_data.get("hw_config")
+            if isinstance(hw_config, dict):
+                pins_hw = hw_config.get("pinsHWList", {})
+                pin_hw = pins_hw.get(self._pin_num)
+                if isinstance(pin_hw, dict) and self._param_name in pin_hw:
+                    try:
+                        return float(pin_hw[self._param_name])
+                    except (ValueError, TypeError):
+                        pass
+        return self._attr_native_value
+
     async def async_set_native_value(self, value: float) -> None:
         """Set the parameter value."""
         int_val = int(value)
         try:
-            result = await self._admin_coord.set_pin_param(
+            result = await self.coordinator.set_pin_param(
                 self._module_id,
                 self._connector,
                 self._pin_num,
@@ -186,6 +200,3 @@ class LarnitechPinNumber(NumberEntity):
             raise HomeAssistantError(
                 f"Pin parameter change rejected: {message}"
             )
-
-        self._attr_native_value = value
-        self.async_write_ha_state()
