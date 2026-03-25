@@ -80,6 +80,18 @@ async def async_setup_entry(
     module_info: dict = {}
     try:
         module_info = await admin_coordinator._admin_call("get_modules")
+        # Enrich with full model descriptions from getModuleApi
+        for mid in list(module_info.keys()):
+            try:
+                api_info = await admin_coordinator._admin_call(
+                    "get_module_api", mid
+                )
+                if isinstance(api_info, dict):
+                    full_name = api_info.get("model_name", "")
+                    if full_name:
+                        module_info[mid]["model_description"] = full_name
+            except Exception:
+                pass
         try:
             extra = await admin_coordinator._admin_call(
                 "get_modules_extra_data"

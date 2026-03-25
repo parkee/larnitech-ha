@@ -54,6 +54,7 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
         module_id = device.module_id
         info = coordinator.module_info.get(str(module_id), {})
         model_name = info.get("model")
+        model_description = info.get("model_description")
         if model_name:
             device_name = f"{model_name} ({module_id})"
         else:
@@ -64,7 +65,7 @@ class LarnitechEntity(CoordinatorEntity[LarnitechCoordinator]):
             identifiers={(DOMAIN, f"{entry_id}_{module_id}")},
             name=device_name,
             manufacturer="Larnitech",
-            model=model_name or f"Module {module_id}",
+            model=model_description or model_name or f"Module {module_id}",
             serial_number=info.get("serial"),
             sw_version=info.get("firmware"),
             suggested_area=module_area,
