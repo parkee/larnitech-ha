@@ -131,7 +131,12 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
     async def fetch_all_hw_configs(
         self, module_ids: list[str]
     ) -> dict[str, dict[str, Any]]:
-        """Fetch HW config for multiple modules in one session."""
+        """Fetch HW config for multiple modules in one session.
+
+        Also injects results into coordinator data so that entities
+        created after this call can read values immediately (before
+        the next periodic poll).
+        """
         result: dict[str, dict[str, Any]] = {}
         for mid in module_ids:
             try:
@@ -143,6 +148,12 @@ class LarnitechAdminCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]
                 self._hw_module_ids.add(mid)
             except Exception:
                 LOGGER.debug("HW config failed for module %s", mid)
+
+        # Inject into coordinator data so entities see it immediately
+        if self.data is not None:
+            for mid, hw in result.items():
+                self.data.setdefault(mid, {})["hw_config"] = hw
+
         return result
 
     async def set_hw_config(
