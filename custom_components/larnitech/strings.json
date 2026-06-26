@@ -2,7 +2,32 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Larnitech controller",
+        "title": "Larnitech connection",
+        "description": "Choose how Home Assistant talks to the controller. Native is recommended: writes are treated as a manual action and hold for ~10 minutes against automations. HTTP keeps the original behaviour.",
+        "menu_options": {
+          "native": "Native protocol (TCP 55555, recommended)",
+          "http": "HTTP / WebSocket"
+        }
+      },
+      "reconfigure": {
+        "title": "Change Larnitech connection",
+        "description": "Switch the transport or update connection details. Your entities are preserved.",
+        "menu_options": {
+          "native": "Native protocol (TCP 55555, recommended)",
+          "http": "HTTP / WebSocket"
+        }
+      },
+      "native": {
+        "title": "Native protocol (TCP 55555)",
+        "description": "Enter the controller IP. Leave the Access key blank to fetch it automatically from the controller's admin panel (admin/admin); otherwise find it in LT Setup → Security → Access key.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]",
+          "access_key": "Access key (optional — auto-fetched if blank)",
+          "native_port": "Native port"
+        }
+      },
+      "http": {
+        "title": "HTTP / WebSocket",
         "description": "Enter the IP address and API key for your Larnitech controller. The API key can be found in LT Setup → Plugins → API → Configure.",
         "data": {
           "host": "[%key:common::config_flow::data::host%]",
@@ -15,10 +40,13 @@
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "unknown": "[%key:common::config_flow::error::unknown%]",
+      "access_key_required": "Could not auto-fetch the Access key. Enter it manually."
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]",
+      "wrong_controller": "The Access details point to a different controller than this entry."
     }
   },
   "entity": {

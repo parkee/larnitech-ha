@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
-from pylarnitech import LarnitechClient, LarnitechDevice, LarnitechDeviceStatus
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from pylarnitech import LarnitechDevice, LarnitechDeviceStatus
 
+from .client_factory import LarnitechTransport
 from .const import DOMAIN, LOGGER
 
 type LarnitechConfigEntry = ConfigEntry[LarnitechCoordinator]
@@ -38,7 +38,7 @@ class LarnitechCoordinator(DataUpdateCoordinator[dict[str, LarnitechDeviceStatus
         self,
         hass: HomeAssistant,
         config_entry: LarnitechConfigEntry,
-        client: LarnitechClient,
+        client: LarnitechTransport,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(

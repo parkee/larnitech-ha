@@ -11,12 +11,12 @@
   "iot_class": "local_push",
   "loggers": ["pylarnitech"],
   "requirements": [
-    "pylarnitech==0.2.10"
+    "pylarnitech[native]==0.3.0"
   ],
   "ssdp": [
     {
       "manufacturer": "Larnitech"
     }
   ],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

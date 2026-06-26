@@ -13,9 +13,21 @@ LOGGER = logging.getLogger(__package__)
 CONF_API_KEY: Final = "api_key"
 CONF_WS_PORT: Final = "ws_port"
 CONF_HTTP_PORT: Final = "http_port"
+CONF_CONNECTION_MODE: Final = "connection_mode"
+CONF_ACCESS_KEY: Final = "access_key"
+CONF_NATIVE_PORT: Final = "native_port"
 
 DEFAULT_WS_PORT: Final = 8080
 DEFAULT_HTTP_PORT: Final = 8888
+DEFAULT_NATIVE_PORT: Final = 55555
+
+# Transport mode for talking to the controller.
+#   native — TCP 55555; writes earn the ~10-min automation backoff (recommended).
+#   http   — HTTP 8888 + WebSocket 8080 (original behaviour).
+CONNECTION_MODE_NATIVE: Final = "native"
+CONNECTION_MODE_HTTP: Final = "http"
+# Existing entries created before native support have no mode stored -> treat as http.
+DEFAULT_CONNECTION_MODE: Final = CONNECTION_MODE_HTTP
 
 PLATFORMS: Final[list[Platform]] = [
     Platform.BINARY_SENSOR,

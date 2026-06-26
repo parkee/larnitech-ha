@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from pylarnitech import LarnitechClient
-
 from homeassistant.const import CONF_HOST, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
 from .admin_coordinator import LarnitechAdminCoordinator
+from .client_factory import connection_mode, create_client
 from .const import (
-    CONF_API_KEY,
-    CONF_HTTP_PORT,
-    DEFAULT_HTTP_PORT,
+    CONNECTION_MODE_NATIVE,
     DOMAIN,
     LOGGER,
     PLATFORMS,
@@ -39,20 +37,19 @@ async def async_setup_entry(
     """Set up Larnitech from a config entry."""
     host = entry.data[CONF_HOST]
 
-    client = LarnitechClient(
-        host=host,
-        api_key=entry.data[CONF_API_KEY],
-        http_port=entry.data.get(CONF_HTTP_PORT, DEFAULT_HTTP_PORT),
-    )
+    client = create_client(entry.data)
 
     # Validate connection
     try:
         device_count = await client.validate_connection()
     except Exception as err:
+        # The native client holds a socket; release it before setup retries.
+        if connection_mode(entry.data) == CONNECTION_MODE_NATIVE:
+            await client.disconnect()
         err_str = str(err).lower()
-        if "auth" in err_str or "key" in err_str:
+        if "auth" in err_str or "key" in err_str or "pkfail" in err_str:
             raise ConfigEntryAuthFailed(
-                f"Invalid API key for {host}"
+                f"Invalid credentials for {host}"
             ) from err
         raise ConfigEntryNotReady(
             f"Cannot connect to {host}: {err}"

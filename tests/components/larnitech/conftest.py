@@ -78,9 +78,9 @@ MOCK_STATUSES = {
 
 @pytest.fixture
 def mock_client() -> Generator[AsyncMock]:
-    """Create a mock LarnitechClient."""
+    """Mock LarnitechClient (built by the factory for HTTP-mode entries)."""
     with patch(
-        "custom_components.larnitech.LarnitechClient",
+        "custom_components.larnitech.client_factory.LarnitechClient",
         autospec=True,
     ) as mock_cls:
         client = mock_cls.return_value
